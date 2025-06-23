@@ -1,0 +1,6 @@
+DEBUG close(): close(5) = 0
+DEBUG close(): close(5) = 0
+DEBUG close(): close(8) = 0
+DEBUG close(): close(8) = 0
+DEBUG close(): close(8) = 0
+DEBUG close(): close(8) = 0
