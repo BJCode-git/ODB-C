@@ -314,7 +314,8 @@ void deserialize_odb_query_desc_inplace(ODB_Query_Desc *desc){
 #if DEBUG
     void Buffer_log(const void *buf,size_t buflen){
         if(buf == NULL || buflen == 0) return;
-        for(size_t i =0 ; i<buflen && i < 500;i++){
+        if(buflen > 500) return;
+        for(size_t i =0;i<buflen;i++){
             char *c = (char*) buf;
             if( isprint(c[i]) || c[i]=='\n')
                 DEBUG_LOG_CH("%c",c[i]);
@@ -532,12 +533,14 @@ int is_socket(const int sockfd) {
     if (getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &sock_type, &optlen) < 0) {
         // not a valid socket
         if (errno == ENOTSOCK || errno == EBADF){
+            errno = 0;
             DEBUG_LOG("%d is not a valid socket", sockfd);
             return 0;
         }
         // valid socket but opt errors
         perror("getsockopt failed");
         DEBUG_LOG("[ERROR] getsockopt error: %s\n", strerror(errno));
+        errno = 0;
         return 1;
     }
 

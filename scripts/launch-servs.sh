@@ -44,6 +44,6 @@ sudo fuser -k 10002/tcp || echo "No process using port 10002"
 # sudo fuser -k 10000/tcp 10001/tcp 10002/tcp
 
 make clean-lib
-make ONE_SHOT="1" USE_ODB="$use_odb" BUFF_SIZE=12288 USE_STANDALONE=0 TYPE="vid" run-front-end >> /dev/null &
-make ONE_SHOT="1" USE_ODB="$use_odb" BUFF_SIZE=16384 USE_STANDALONE=0 TYPE="vid" run-inter >> /dev/null &
-make ONE_SHOT="1" USE_ODB="$use_odb" BUFF_SIZE=12288 USE_STANDALONE=0 TYPE="vid" run-back-end >> /dev/null &
+make ONE_SHOT="1" USE_ODB="$use_odb" BUFF_SIZE=12288 USE_STANDALONE=0 TYPE="txt" run-front-end >> /dev/null &
+make ONE_SHOT="1" USE_ODB="$use_odb" BUFF_SIZE=16384 USE_STANDALONE=0 TYPE="txt" run-inter >> /dev/null &
+make ONE_SHOT="1" USE_ODB="$use_odb" BUFF_SIZE=12288 USE_STANDALONE=0 TYPE="txt" run-back-end >> /dev/null &

@@ -33,10 +33,10 @@ CPU_MEASURE_DIR="results/nginx/cpu-conso-$mode"
 
 # Paramètres du test
 PROCESS_NAME="nginx"
-TEST_DURATION=20  # durée en secondes
+TEST_DURATION=100  # durée en secondes
 TEST_PERIOD=0.1 # période en secondes (100 ms)
-LOCUST_USERS=1000
-LOCUST_SPAWN_RATE=80
+LOCUST_USERS=500
+LOCUST_SPAWN_RATE=25
 
 # Nettoyage des anciens résultats
 rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/*
@@ -52,7 +52,7 @@ echo "[INFO] Démarrage du test de charge avec Locust..."
 if [[  "$tier" == "FE" || "$tier" == "ALL" ]]; then
 echo "[INFO] Démarrage du test de charge avec Locust..."
 # Lancer Locust en arrière-plan
-locust -f scripts/locustfile.py \
+locust -f scripts/locust/locustfile.py \
   --headless \
   -u "$LOCUST_USERS" -r "$LOCUST_SPAWN_RATE" \
   -H http://localhost:42000 \
@@ -78,4 +78,4 @@ echo "[INFO] Monitoring terminé."
 
 
 # Générer les graphes Locust
-python3 scripts/draw-locust.py "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR"
+python3 scripts/locust/draw-locust.py "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR"

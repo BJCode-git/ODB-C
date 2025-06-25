@@ -102,13 +102,13 @@ $(HTTP_LIB):  $(LIB_DIR)
 
 ################## Compilation des librairies ODB ##################
 
-$(ODB_LIB): $(LIB_DIR) 
+$(ODB_LIB): clean-lib $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -o $(ODB_LIB)
-$(FE_LIB): $(LIB_DIR) 
+$(FE_LIB): clean-lib $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -DLOG_STATUS=\"FRONT_END\" -o $(FE_LIB)
-$(IS_LIB): $(LIB_DIR) 
+$(IS_LIB): clean-lib $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -DLOG_STATUS=\"INTERMEDIATE_SERVER\" -o $(IS_LIB)
-$(BE_LIB): $(LIB_DIR) 
+$(BE_LIB): clean-lib $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -DLOG_STATUS=\"BACK_END\" -o $(BE_LIB)
 
 ################## Compilation des Tests ##################
@@ -194,15 +194,15 @@ run-all-tests: run-test-iterator run-test-serialisation run-test-buffer-parts ru
 ## Compilation
 
 back-end: $(BIN_DIR) 
-	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -pedantic -o $(BIN_DIR)/back-end $(SERV_DIR)/back-end.c $(SRC_DIR)/ODB/odb-utils.c $(SRC_DIR)/ODB/odb.c -DUSE_SENDFILE=$(USE_SENDFILE) -DONE_SHOT=$(ONE_SHOT) -DEQU_ALIGN=$(EQU_ALIGN) $(LDFLAGS) -L$(LIB_DIR) -literator
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -pedantic -o $(BIN_DIR)/back-end $(SERV_DIR)/back-end.c $(SRC_DIR)/ODB/odb-utils.c $(SRC_DIR)/ODB/odb.c -DUSE_SENDFILE=$(USE_SENDFILE) -DONE_SHOT=$(ONE_SHOT) -DEQU_ALIGN=$(EQU_ALIGN) $(LDFLAGS) -L$(LIB_DIR)
 	chmod +x $(BIN_DIR)/back-end
 
 inter: $(BIN_DIR) 
-	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -pedantic -o $(BIN_DIR)/inter $(SERV_DIR)/inter.c $(SRC_DIR)/ODB/odb-utils.c $(SRC_DIR)/ODB/odb.c -DUSE_SENDFILE=$(USE_SENDFILE) -DONE_SHOT=$(ONE_SHOT) -DEQU_ALIGN=$(EQU_ALIGN)  -DBUFSIZE=$(BUFF_SIZE) $(LDFLAGS) -L$(LIB_DIR) -literator
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -pedantic -o $(BIN_DIR)/inter $(SERV_DIR)/inter.c $(SRC_DIR)/ODB/odb-utils.c $(SRC_DIR)/ODB/odb.c -DUSE_SENDFILE=$(USE_SENDFILE) -DONE_SHOT=$(ONE_SHOT) -DEQU_ALIGN=$(EQU_ALIGN)  -DBUFSIZE=$(BUFF_SIZE) $(LDFLAGS) -L$(LIB_DIR)
 	chmod +x $(BIN_DIR)/inter
 
 front-end: $(BIN_DIR) 
-	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -pedantic -o $(BIN_DIR)/front-end $(SERV_DIR)/front-end.c $(SRC_DIR)/ODB/odb-utils.c $(SRC_DIR)/ODB/odb.c -DUSE_SENDFILE=$(USE_SENDFILE) -DONE_SHOT=$(ONE_SHOT) -DEQU_ALIGN=$(EQU_ALIGN) -DBUFSIZE=$(BUFF_SIZE) $(LDFLAGS) -L$(LIB_DIR) -literator
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -pedantic -o $(BIN_DIR)/front-end $(SERV_DIR)/front-end.c $(SRC_DIR)/ODB/odb-utils.c $(SRC_DIR)/ODB/odb.c -DUSE_SENDFILE=$(USE_SENDFILE) -DONE_SHOT=$(ONE_SHOT) -DEQU_ALIGN=$(EQU_ALIGN) -DBUFSIZE=$(BUFF_SIZE) $(LDFLAGS) -L$(LIB_DIR) 
 	chmod +x $(BIN_DIR)/front-end
 
 front-end-test: $(BIN_DIR) $(SERV_DIR)/front-end-test.c $(SERV_DIR)/server.h 

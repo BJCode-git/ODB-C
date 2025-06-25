@@ -526,7 +526,7 @@ extern ODB_Config ODB_conf;
 *               IO related              *
 *                                       *
 *****************************************/
-
+extern int     (*original_shutdown)(int sockfd, int how);
 extern ssize_t (*original_recv)(int, void*, ssize_t,int );
 extern ssize_t (*original_recvfrom)(int, void *, size_t, int,struct sockaddr*, socklen_t*);
 extern ssize_t (*original_recvmsg)(int , struct msghdr*, int);

@@ -108,7 +108,7 @@ ssize_t strict_send(int fd,const void *buf, size_t count, int flags){
         if (ret < 0){
             //if( errno == EAGAIN || errno == EWOULDBLOCK ) continue;
             ERROR_LOG("send(%d,%p,%zu,%d)",fd,buf,count,flags);
-            //if(errno == EINTR ) continue;
+            if(errno == EINTR ) continue;
             return written == 0 ? (ssize_t) -1 : (ssize_t)written;
         }
         if(ret == 0){

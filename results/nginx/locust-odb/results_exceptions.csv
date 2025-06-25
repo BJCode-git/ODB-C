@@ -1,11 +1,11 @@
 Count,Message,Traceback,Nodes
-2,"('Expected HTTP/', 8)","  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 340, in run
+1,"('Expected HTTP/', 8)","  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 340, in run
     self.execute_next_task()
   File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 373, in execute_next_task
     self.execute_task(self._task_queue.popleft())
   File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 490, in execute_task
     task(self.user)
-  File ""/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/scripts/locustfile.py"", line 16, in test_lorem
+  File ""/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/scripts/locust/locustfile.py"", line 17, in test_lorem
     self.client.get(""/lorem.html"")
   File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 301, in get
     return self.request(""GET"", url, **kwargs)
@@ -30,34 +30,73 @@ Count,Message,Traceback,Nodes
   File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/response.py"", line 167, in _read_headers
     self.feed(data)
 ",local
-1,"('Expected HTTP/', 8)","  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 340, in run
+193,timed out,"  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 340, in run
     self.execute_next_task()
   File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 373, in execute_next_task
     self.execute_task(self._task_queue.popleft())
   File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 490, in execute_task
     task(self.user)
-  File ""/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/scripts/locustfile.py"", line 12, in test_jpg
+  File ""/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/scripts/locust/locustfile.py"", line 17, in test_lorem
+    self.client.get(""/lorem.html"")
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 301, in get
+    return self.request(""GET"", url, **kwargs)
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 272, in request
+    request_meta[""response_length""] = len(response.content) if response.content else 0
+  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 205, in content
+    self._cached_content = self._content()
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 566, in _content
+    return super()._content()
+  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 220, in _content
+    ret = self._response.read()
+  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/response.py"", line 231, in read
+    data = self._sock.recv(length or self.block_size)
+  File ""/home/julien/.local/lib/python3.10/site-packages/gevent/_socketcommon.py"", line 662, in recv
+    self._wait(self._read_event)
+  File ""src/gevent/_hub_primitives.py"", line 317, in gevent._gevent_c_hub_primitives.wait_on_socket
+  File ""src/gevent/_hub_primitives.py"", line 322, in gevent._gevent_c_hub_primitives.wait_on_socket
+  File ""src/gevent/_hub_primitives.py"", line 313, in gevent._gevent_c_hub_primitives._primitive_wait
+  File ""src/gevent/_hub_primitives.py"", line 314, in gevent._gevent_c_hub_primitives._primitive_wait
+  File ""src/gevent/_hub_primitives.py"", line 46, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_hub_primitives.py"", line 46, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_hub_primitives.py"", line 55, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_waiter.py"", line 154, in gevent._gevent_c_waiter.Waiter.get
+  File ""src/gevent/_greenlet_primitives.py"", line 61, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_greenlet_primitives.py"", line 61, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_greenlet_primitives.py"", line 65, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_gevent_c_greenlet_primitives.pxd"", line 35, in gevent._gevent_c_greenlet_primitives._greenlet_switch
+",local
+179,timed out,"  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 340, in run
+    self.execute_next_task()
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 373, in execute_next_task
+    self.execute_task(self._task_queue.popleft())
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/user/task.py"", line 490, in execute_task
+    task(self.user)
+  File ""/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/scripts/locust/locustfile.py"", line 13, in test_jpg
     self.client.get(""/test4.jpg"")
   File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 301, in get
     return self.request(""GET"", url, **kwargs)
-  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 249, in request
-    response = self._send_request_safe_mode(method, built_url, payload=data, headers=headers, **kwargs)
-  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 161, in _send_request_safe_mode
-    return self.client.urlopen(url, method=method, **kwargs)
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 397, in urlopen
-    last_error = self._handle_error(e, url=req.url)
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 334, in _handle_error
-    raise e.with_traceback(sys.exc_info()[2])
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 392, in urlopen
-    resp = self._urlopen(req)
-  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 622, in _urlopen
-    resp = client.request(
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/client.py"", line 253, in request
-    response = HTTPSocketPoolResponse(
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/response.py"", line 269, in __init__
-    super().__init__(sock, **kw)
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/response.py"", line 146, in __init__
-    self._read_headers()
-  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/response.py"", line 167, in _read_headers
-    self.feed(data)
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 272, in request
+    request_meta[""response_length""] = len(response.content) if response.content else 0
+  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 205, in content
+    self._cached_content = self._content()
+  File ""/home/julien/.local/lib/python3.10/site-packages/locust/contrib/fasthttp.py"", line 566, in _content
+    return super()._content()
+  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/useragent.py"", line 220, in _content
+    ret = self._response.read()
+  File ""/home/julien/.local/lib/python3.10/site-packages/geventhttpclient/response.py"", line 231, in read
+    data = self._sock.recv(length or self.block_size)
+  File ""/home/julien/.local/lib/python3.10/site-packages/gevent/_socketcommon.py"", line 662, in recv
+    self._wait(self._read_event)
+  File ""src/gevent/_hub_primitives.py"", line 317, in gevent._gevent_c_hub_primitives.wait_on_socket
+  File ""src/gevent/_hub_primitives.py"", line 322, in gevent._gevent_c_hub_primitives.wait_on_socket
+  File ""src/gevent/_hub_primitives.py"", line 313, in gevent._gevent_c_hub_primitives._primitive_wait
+  File ""src/gevent/_hub_primitives.py"", line 314, in gevent._gevent_c_hub_primitives._primitive_wait
+  File ""src/gevent/_hub_primitives.py"", line 46, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_hub_primitives.py"", line 46, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_hub_primitives.py"", line 55, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_waiter.py"", line 154, in gevent._gevent_c_waiter.Waiter.get
+  File ""src/gevent/_greenlet_primitives.py"", line 61, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_greenlet_primitives.py"", line 61, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_greenlet_primitives.py"", line 65, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_gevent_c_greenlet_primitives.pxd"", line 35, in gevent._gevent_c_greenlet_primitives._greenlet_switch
 ",local

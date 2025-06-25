@@ -400,11 +400,11 @@ int serve_client(int client_fd,ServerConf *conf,Bool is_front_end){
 		}
 
 		// if internal server,makes a fault (i.e access data)
-		if(!is_front_end){
-			printf("\tFaulting...\n");
-			char c = buffer[bytes_read/2];
-			(void) c;
-		}
+		//if(!is_front_end){
+		//	printf("\tFaulting...\n");
+		//	char c = buffer[bytes_read/2];
+		//	(void) c;
+		//}
 
 		total_bytes_read += (uint64_t) bytes_read;
 		printf("\tRead %zu bytes | total : %lu\n",(size_t) bytes_read,total_bytes_read);

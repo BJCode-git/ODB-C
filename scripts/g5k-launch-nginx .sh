@@ -64,7 +64,7 @@ launch_nginx() {
   local tier_name=$1
   local conf_file=$2
   echo "[INFO] Lancement nginx ($tier_name)..."
-  sudo-g5k -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/$conf_file" || {
+  sudo-g5k -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/g5k/$conf_file" || {
     echo "❌ Échec lancement nginx ($tier_name)"
     exit 1
   }

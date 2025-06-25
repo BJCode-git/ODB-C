@@ -28,4 +28,5 @@ int     (*original_close)(int fd) = NULL;
 int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *len) = NULL;
 ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags) = NULL;
 pid_t 	(*original_fork)(void) = NULL;
+int     (*original_shutdown)(int sockfd, int how) = NULL;
 
