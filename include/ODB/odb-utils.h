@@ -118,7 +118,9 @@ void deserialize_odb_query_desc_inplace(ODB_Query_Desc *desc);
             FILE *file = fdopen(debug_fd, "a"); \
             if (file) { \
                 flock(debug_fd, LOCK_EX); \
+                int saved_errno = errno; \
                 fprintf(file, "ERROR %s(): " fmt ", cause : %s\n", __func__, ##__VA_ARGS__, strerror(errno)); \
+                errno = saved_errno; \
                 flock(debug_fd, LOCK_UN); \
                 fclose(file); \
             } else { \

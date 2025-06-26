@@ -415,7 +415,7 @@ static ODB_ERROR send_to_client(int sockfd,ConnectionInfo *info,int flags,size_t
 
         // if desc give 0 sizes, it's an error
     if( info->desc.d_desc.head_size == 0 && info->desc.d_desc.body_size == 0 && info->desc.d_desc.tail_size == 0){
-        errno = 0;
+        //errno = 0;
         ERROR_LOG("Desc with sizes 0");
         return ODB_UNKNOWN_ERROR;
     }
@@ -738,7 +738,7 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
 
     // setup info 
     err = setup_send_info(buf,buf_len,&entry->info);
-    errno = 0;
+    //errno = 0;
     if ( ODB_SUCCESS != err ){
         ERROR_LOG("SEND : setup_info -> error %d",err);
         return -1;
@@ -765,7 +765,6 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
                 err = send_virtual(socket,&entry->info, flags, &bytes_written);
                 if ( ODB_SUCCESS != err && ODB_INCOMPLETE != err){
                     // try to send data in real if Failed
-                    errno = 0;
                     ERROR_LOG("send_virtual failed -> call send_real");
                     err = send_real(socket,&entry->info, flags, &bytes_written);
                 }
@@ -865,6 +864,7 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags){
 
 ssize_t write(int fd, const void *buf, size_t len){
     ssize_t ret = 0;
+    errno = 0;
     DEBUG_LOG("write(fd=%d, buf=%p, len=%zu)",fd,buf,len);
     #if !ODB
         ret = original_write(fd,buf,len);
@@ -877,13 +877,14 @@ ssize_t write(int fd, const void *buf, size_t len){
             DEBUG_LOG("write(socket=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len,ret);
         }
     #endif
-    if(ret > 0) Buffer_log(buf,ret);
-    DEBUG_LOG("write(file=%d, buf=%p, len=%zu) = %zd",fd,buf,len, ret);
+    if(ret > 0){Buffer_log(buf,ret);}
+    DEBUG_LOG("write(fd=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len, ret);
     return ret;
 }
 
 ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
     ssize_t ret = 0;
+    errno = 0;
     DEBUG_LOG("ODB writev(socket=%d, iov=%p, iovcnt=%d)",socket,iov,iovcnt);
     #if !ODB
         ret = original_writev(socket,iov,iovcnt);
@@ -894,6 +895,7 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
         else{
             size_t tot_len   = 0;
             for(int i=0; i<iovcnt; i++){
+                errno = 0;
                 tot_len += iov[i].iov_len;
                 ssize_t local_ret = write(socket,iov[i].iov_base,iov[i].iov_len);
                 if(local_ret<0){
@@ -909,10 +911,18 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
             DEBUG_LOG("writev %zd / %zu bytes ", ret,tot_len);
         }
     #endif
-    DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d) = %zd bytes",socket,iov,iovcnt,ret);
-    if(ret > 0) IOV_log(iov,iovcnt);
-    if(ret < 0) ERROR_LOG("writev %d",errno);
 
+    //if(ret > 0){ IOV_log(iov,iovcnt);}
+    if(ret < 0){ERROR_LOG("writev");}
+    if(errno==EAGAIN || errno==EWOULDBLOCK){
+        //determine if FNDELAY is set
+        int flags = fcntl(socket,F_GETFL,0);
+        if(flags & FNDELAY){
+            errno = 0;
+            ret = 0;
+        }
+    }
+    DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d) = %zd bytes",socket,iov,iovcnt,ret);
     return ret;
 }
 
@@ -1703,7 +1713,8 @@ ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags){
         }
     #endif
 
-    if(ret>0) IOV_log(msg->msg_iov,msg->msg_iovlen);
+    if(ret>0){IOV_log(msg->msg_iov,msg->msg_iovlen);}
+    
     return ret;
 }
 

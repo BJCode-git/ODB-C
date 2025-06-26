@@ -5,7 +5,6 @@
 #include <dlfcn.h>
 #include <sys/select.h>
 
-
 ssize_t strict_writev(int fd, const struct iovec *iov, int iovcnt) {
     ssize_t total_sent = 0;
     int i = 0;
@@ -98,7 +97,6 @@ ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
     return total_sent;
 }
 
-
 ssize_t strict_send(int fd,const void *buf, size_t count, int flags){
     //init_original_functions();
     //ODB_init();
@@ -119,37 +117,6 @@ ssize_t strict_send(int fd,const void *buf, size_t count, int flags){
     }
     return (ssize_t) written;
 }
-
-/*
-ssize_t strict_send(int fd, const void *buf, size_t count, int flags) {
-    size_t written = 0;
-
-    while (written < count) {
-        fd_set wfds;
-        FD_ZERO(&wfds);
-        FD_SET(fd, &wfds);
-        int sel = select(fd + 1, NULL, &wfds, NULL, NULL);
-        if (sel < 0) {
-            if (errno == EINTR) continue;
-            ERROR_LOG("select() failed: errno=%d", errno);
-            return -1;
-        }
-
-        ssize_t ret = original_send(fd, (const char *)buf + written, count - written, flags);
-        if (ret < 0) {
-            //if (errno == EINTR) continue;
-            //if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
-            ERROR_LOG("send() failed: errno=%d", errno);
-            return written == 0 ? (ssize_t) -1 : (ssize_t) written;
-        }
-        if (ret == 0) return (ssize_t)written; // Pas vraiment normal mais on s'en prémunit
-
-        written += (size_t)ret;
-    }
-
-    return (ssize_t)written;
-}
-*/
 
 ssize_t strict_recv(int fd, void *buf, size_t count,int flags){
     //init_original_functions();
@@ -172,43 +139,6 @@ ssize_t strict_recv(int fd, void *buf, size_t count,int flags){
     }
     return readed;
 }
-
-
-/*
-ssize_t strict_recv(int fd, void *buf, size_t count, int flags) {
-    size_t readed = 0;
-
-    while (readed < count) {
-        ssize_t ret = original_recv(fd, (char *)buf + readed, count - readed, flags);
-
-        if (ret > 0) readed += (size_t)ret;
-        else if (ret == 0) break;
-        else {
-            if (errno == EINTR) {
-                ERROR_LOG("recv interrupted");
-                continue;
-            }
-            // Not Available
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                fd_set rfds;
-                FD_ZERO(&rfds);
-                FD_SET(fd, &rfds);
-
-                int sel = select(fd + 1, &rfds, NULL, NULL, NULL); // bloquant
-                if (sel < 0) {
-                    // retry recv and select
-                    if (errno == EINTR) continue;
-                }
-                else continue;
-            }
-            // Fatal error
-            ERROR_LOG("recv(%d,%p,%zu,%d)", fd, buf, count, flags);
-            return readed == 0 ? (ssize_t) -1 : (ssize_t) readed;
-        }
-    }
-
-    return (ssize_t)readed;
-}*/
 
 
 // ************************************
@@ -701,14 +631,13 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             bytes_to_read = MIN(query->d_desc.body_size,payload_size - local_buff_offset);
             start         = ((uint8_t*) buffer->buffer) + local_buff_offset;
 
-            bytes_read = strict_recv(sock, start,bytes_to_read,0);
+            bytes_read = strict_recv(sock, start,bytes_to_read,MSG_WAITALL);
             if(bytes_read < 0){
                 ERROR_LOG("Payload read");
                 original_close(sock);
                 return ODB_SOCKET_READ_ERROR;
             }
             if ((size_t)bytes_read != bytes_to_read || bytes_read == 0){
-                errno = 0;
                 ERROR_LOG("Body read not enough !! got %zu bytes instead of %zu",(size_t) bytes_read,bytes_to_read); 
             }
             *tot_bytes_read += (size_t) bytes_read;
@@ -724,7 +653,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             
             bytes_to_read = MIN(query->d_desc.body_size,buffer->body_size - local_buff_offset);
 
-            bytes_read = strict_recv(sock, start,bytes_to_read,0);
+            bytes_read = strict_recv(sock, start,bytes_to_read,MSG_WAITALL);
             if(bytes_read < 0){
                 DEBUG_LOG("[ERROR] Body read error !!");
                 original_close(sock);
@@ -738,6 +667,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
         break;
 
         case ODB_MSG_GET_UNALIGNED_DATA:
+        
             // we'll use body_size to know how much data have been collected so far in the head/tail
             if(query->d_desc.head_size + query->d_desc.body_size > payload_size ||
                query->d_desc.body_size + query->d_desc.tail_size > payload_size){
@@ -763,7 +693,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
            }
             
             // receive unaligned data
-            bytes_read = strict_recv(sock, start, bytes_to_read,0);
+            bytes_read = strict_recv(sock, start, bytes_to_read,MSG_WAITALL);
             if( bytes_read < 0){
                 DEBUG_LOG("[ERROR] Unaligned data read error !!");
                 original_close(sock);
