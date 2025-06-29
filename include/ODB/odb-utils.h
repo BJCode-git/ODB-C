@@ -308,7 +308,7 @@ void stop_garbage_collector();
 *                                       *
 *****************************************/
 
-ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT,void *addr,size_t size,size_t payload_offset,const ODB_Desc *vdesc);
+ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT,void *addr,size_t size,const ODB_Desc *vdesc);
 ODB_ERROR remove_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, ODB_ProtectedMemoryTable *entry,ODB_Desc *vdesc);
 ODB_ProtectedMemoryTable* find_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT,const void *addr, size_t size);
 void reset_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT);

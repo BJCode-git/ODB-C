@@ -1176,7 +1176,7 @@ void stop_garbage_collector(){
 *                                       *
 *****************************************/
 
-ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, void *addr,size_t size,size_t payload_offset,const ODB_Desc *vdesc) {
+ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, void *addr,size_t size,const ODB_Desc *vdesc) {
     if(PMT==NULL || addr==NULL || size==0) return ODB_NULL_PTR;
 
     // check if the ODB_Desc  pointed by vdesc,
@@ -1194,8 +1194,6 @@ ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, void *addr,si
     entry->addr = addr;
     entry->size = size;
     entry->desc =(ODB_Desc*) vdesc;
-    //from where we should download and copy the remote payload
-    entry->payload_offset = payload_offset;
 
     unsigned int n_buffers = 0;
     ODB_Local_Buffer buf;
@@ -1209,16 +1207,7 @@ ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, void *addr,si
     }
 
     if ( mprotect( buf.body,buf.body_size, PROT_NONE)  == -1) {
-        #if DEBUG
-            DEBUG_LOG("mprotect error: %s",strerror( errno ));
-            if (errno == EINVAL) {
-                DEBUG_LOG("[ERROR] Invalid protection flags or address is not aligned.\n");
-            } else if (errno == EACCES) {
-                DEBUG_LOG("[ERROR] Insufficient privileges.\n");
-            } else if (errno == ENOMEM) {
-                DEBUG_LOG("[ERROR] Address range is invalid or address space is insufficient.\n");
-            }
-        #endif
+        ERROR_LOG("mprotect error");
         // delete entry from hash table
         HASH_DEL(*PMT, entry);
         free(entry);
@@ -1229,6 +1218,36 @@ ODB_ERROR add_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, void *addr,si
     }
 
     return ODB_SUCCESS;
+}
+
+ODB_ProtectedMemoryTable* find_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT,const void *addr, size_t size) {
+    // find an entry if the region beginning at addr and of size size contains a protected region
+
+    if( PMT == NULL || addr == NULL || size == 0) return NULL;
+    
+    ODB_ProtectedMemoryTable *entry = NULL;
+    uintptr_t begin_region = (uintptr_t) addr,
+              end_region = begin_region + size -1;
+    uintptr_t start, end;
+    uintptr_t max_begin, min_end;
+
+
+    for(entry = *PMT; entry !=NULL; entry = entry->hh.next){
+        start   = (uintptr_t) entry->addr;
+        end     = entry->size > 0 ? start + entry->size - 1 : start;
+
+        max_begin   = MAX(start, begin_region);
+        min_end     = MIN(end, end_region);
+
+        if( max_begin <= min_end ){
+            DEBUG_LOG("Protected memory found : %p of size %zu !",entry->addr,entry->size);
+            return entry;
+        }
+    }
+
+    DEBUG_LOG("No protected memory not found");
+
+    return NULL;
 }
 
 ODB_ERROR remove_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT, ODB_ProtectedMemoryTable *entry,ODB_Desc *vdesc) {
@@ -1269,34 +1288,4 @@ void reset_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT) {
         free(entry);
     }
     *PMT = NULL;
-}
-
-ODB_ProtectedMemoryTable* find_ODB_Protected_Memory(ODB_ProtectedMemoryTable **PMT,const void *addr, size_t size) {
-    // find an entry if the region beginning at addr and of size size contains a protected region
-
-    if( PMT == NULL || addr == NULL || size == 0) return NULL;
-    
-    ODB_ProtectedMemoryTable *entry = NULL;
-    uintptr_t begin_region = (uintptr_t) addr,
-              end_region = begin_region + size -1;
-    uintptr_t start, end;
-    uintptr_t max_begin, min_end;
-
-
-    for(entry = *PMT; entry !=NULL; entry = entry->hh.next){
-        start   = (uintptr_t) entry->addr;
-        end     = entry->size > 0 ? start + entry->size - 1 : start;
-
-        max_begin   = MAX(start, begin_region);
-        min_end     = MIN(end, end_region);
-
-        if( max_begin <= min_end ){
-            DEBUG_LOG("Protected memory found : %p of size %zu !",entry->addr,entry->size);
-            return entry;
-        }
-    }
-
-    DEBUG_LOG("No protected memory not found");
-
-    return NULL;
 }

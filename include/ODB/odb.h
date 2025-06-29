@@ -145,15 +145,16 @@ typedef enum{
     ODB_NULL_PTR                = -3,
     ODB_BUFFER_OVERFLOW         = -4,
     ODB_MEMORY_ALLOCATION_ERROR = -5,
-    ODB_MPROTECT_ERROR          = -6,
-    ODB_SOCKET_CREATE_ERROR     = -7,
-    ODB_SOCKET_WRITE_ERROR      = -8,
-    ODB_SOCKET_READ_ERROR       = -9,
-    ODB_NOT_A_SOCKET            = -10,
-    ODB_THREAD_CREATE           = -11,
-    ODB_INVALID_REQUEST         = -12,
-    ODB_NOT_FOUND               = -13,
-    ODB_UNKNOWN_ERROR           = -14
+    ODB_ALREADY_EXISTS          = -6,
+    ODB_MPROTECT_ERROR          = -7,
+    ODB_SOCKET_CREATE_ERROR     = -8,
+    ODB_SOCKET_WRITE_ERROR      = -9,
+    ODB_SOCKET_READ_ERROR       = -10,
+    ODB_NOT_A_SOCKET            = -11,
+    ODB_THREAD_CREATE           = -12,
+    ODB_INVALID_REQUEST         = -13,
+    ODB_NOT_FOUND               = -14,
+    ODB_UNKNOWN_ERROR           = -15
 } ODB_ERROR;
 
 
@@ -422,7 +423,6 @@ typedef struct {
     // pointer to the desc located in the protected memory
     ODB_Desc*       desc;
     // buffer total_size 
-    size_t          payload_offset;
     size_t          size;
     UT_hash_handle  hh;
 }ODB_ProtectedMemoryTable;

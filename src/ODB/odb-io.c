@@ -1282,7 +1282,7 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
     const size_t unaligned_size = info->desc.d_desc.head_size + info->desc.d_desc.tail_size;
     const size_t payload_size   = info->desc.d_desc.head_size + info->desc.d_desc.body_size + info->desc.d_desc.tail_size;
     const size_t buf_size       = info->payload.head_size + info->payload.body_size + info->payload.tail_size;
-    const size_t head_in_body   = info->desc.d_desc.head_size > info->payload.head_size ? info->desc.d_desc.head_size - info->payload.head_size : 0;
+
     struct iovec iov[2]         = {{NULL,0},{NULL,0}};
     struct msghdr msg           = MSGHDR_INITIALIZER(iov,2,flags);
     *bytes_read                 = 0;
@@ -1291,6 +1291,7 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
     DEBUG_LOG("ODB local buffer: "); ODB_Local_Buffer_log(&info->payload);
     DEBUG_LOG("ODB Desc : "); ODB_DESC_log(&info->desc);
 
+    // apparently gives bad adress error
     if(info->bytes_read_write < info->desc.d_desc.head_size){
         // receive the head in the head part of the buffer
         iov[0].iov_len = MIN(buf_size,info->desc.d_desc.head_size - info->bytes_read_write);
@@ -1309,7 +1310,7 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
         DEBUG_LOG("Receiving %zu head_bytes + %zu tail_bytes...\n",iov[0].iov_len,iov[1].iov_len);
         ssize_t recv_bytes = original_recvmsg(socket, &msg, flags);
         if(recv_bytes < 0){
-            ERROR_LOG("Receiving virtual data %zu/%zu",recv_bytes,unaligned_size);
+            ERROR_LOG("Received %zd/%zu bytes",recv_bytes,unaligned_size);
             return ODB_SOCKET_READ_ERROR;
         }
         info->bytes_read_write += (size_t) recv_bytes;
@@ -1317,96 +1318,63 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
         DEBUG_LOG("Received %zu / %zu bytes of unaligned data : \n",*bytes_read,unaligned_size);
     }
 
-    #if ADAPTIVE_MEMORY_METHOD
+    if( unaligned_size <= info->bytes_read_write ){
+
+        // compute new desc for the payload
+        ODB_Desc *desc_in_body_p = NULL;
+        size_t new_head_size     = MAX(info->payload.head_size,info->desc.d_desc.head_size);
+        size_t new_tail_size     = MAX(info->payload.tail_size,info->desc.d_desc.tail_size);
+        size_t delta_size        = new_head_size + new_tail_size - info->desc.d_desc.head_size - info->desc.d_desc.tail_size;
+        size_t new_body_size     = info->desc.d_desc.body_size - delta_size;
+
+        // update header/ desc info
+        size_t desc_offset = MIN(new_head_size,info->payload.head_size + info->payload.body_size - ODB_DESC_SIZE);
+        desc_in_body_p =(ODB_Desc*) ((uint8_t*) info->payload.buffer + desc_offset);
+        desc_in_body_p->d_desc.head_size = new_head_size;
+        desc_in_body_p->d_desc.body_size = new_body_size;
+        desc_in_body_p->d_desc.tail_size = new_tail_size;
+        desc_in_body_p->d_desc.fd        = info->desc.d_desc.fd;
+        desc_in_body_p->source_addr      = info->desc.source_addr;
+
+        DEBUG_LOG("Copy Desc to protected body :");
+        ODB_DESC_log(desc_in_body_p);
+
+        #if ADAPTIVE_MEMORY_METHOD
         // if we received all the head and tail, download
         // data if necessary to complete local head and tail
-        // use to query head/tail data to the remote server
-        ODB_Query_Desc         query;
-        // nb of bytes downloaded to complete local head and/or tail
-        size_t            downloaded_bytes= 0;
-        if(unaligned_size <= info->bytes_read_write){
-            // complete the local head/tail with real data from the RAB
-            query.type        = ODB_MSG_GET_UNALIGNED_DATA;
-            // use as an offset the size of the head that we already have
-            query.d_desc.fd          = info->desc.d_desc.fd;
-            //DEBUG_LOG("recv local buffer is : ");
-            //ODB_Local_Buffer_log(&info->payload);
-
-            if(info->payload.head_size > info->desc.d_desc.head_size){
-                query.d_desc.head_size = info->payload.head_size - info->desc.d_desc.head_size;
-                query.d_desc.body_size = info->desc.d_desc.head_size;
-                query.d_desc.tail_size = 0;
-                DEBUG_LOG("ADAPTIVE_MEMORY_METHOD : Get %zu head bytes from RAB",query.d_desc.head_size);
+            if(info->payload.head_size > info->desc.d_desc.head_size || info->payload.tail_size > info->desc.d_desc.tail_size){
+                // use to query head/tail data to the remote server
+                ODB_Query_Desc         query;
+                // nb of bytes downloaded to complete local head and/or tail
+                size_t            downloaded_bytes= 0;
+                INIT_ODB_Query( query,ODB_MSG_GET_UNALIGNED_DATA,
+                                info->desc.d_desc.fd,
+                                info->desc.d_desc.head_size, 
+                                new_head_size + new_body_size,
+                                info->desc.d_desc.tail_size);
+                DEBUG_LOG("Getting more data...");
+                ODB_Query_log(&query);
                 ODB_get_remote_data(&query,&info->desc.source_addr,&info->payload,0,&downloaded_bytes);
+                DEBUG_LOG("ADAPTIVE_MEMORY_METHOD : Got  %zu / %zu tail bytes from RAB",downloaded_bytes,info->desc.d_desc.tail_size);
             }
+        #endif
 
-            if( info->payload.tail_size > info->desc.d_desc.tail_size){
-                query.d_desc.head_size = 0;
-                query.d_desc.body_size = info->desc.d_desc.tail_size;
-                query.d_desc.tail_size = info->payload.tail_size - info->desc.d_desc.tail_size;
-                DEBUG_LOG("ADAPTIVE_MEMORY_METHOD : Get  %zu tail bytes from RAB",query.d_desc.tail_size);
-                ODB_get_remote_data(&query,&info->desc.source_addr,&info->payload,0,&downloaded_bytes);
-            }
+        // if body, not protected -> should be protected after receiving data, 
+        // try to add mprotection
+        DEBUG_LOG("ODB : adding mprotect to the body of the payload...");
+        // on failure, download the real data
+        if( ODB_SUCCESS != add_ODB_Protected_Memory(&intern_PMT,info->payload.buffer,buf_size,desc_in_body_p)){
+            ERROR_LOG("mprotect error -> call get_remote_payload !!");
+            info->progress = ODB_RECEIVING_HEAD;
+            return recv_virtual_to_real(socket,bytes_read,flags,info);
         }
-    #endif
-
-    // now, if we have copy the tail and head, copy desc inside the body
-    ODB_Desc *desc_in_body_p = NULL;
-    if(unaligned_size <= info->bytes_read_write ){
 
         // trick to tell that we have read the body
         info->bytes_read_write = unaligned_size + info->desc.d_desc.body_size;
         *bytes_read           += info->desc.d_desc.body_size;
-
-        // UPDATE desc head and tail size :
-        info->desc.d_desc.head_size  = MAX(info->payload.head_size,info->desc.d_desc.head_size);
-        info->desc.d_desc.tail_size  = MAX(info->payload.tail_size,info->desc.d_desc.tail_size);
-        // update body size_ according to head and tail data size
-        info->desc.d_desc.body_size  = info->payload.body_size - (info->desc.d_desc.head_size - info->payload.head_size + info->desc.d_desc.tail_size - info->payload.tail_size);
-
-        // update header/ desc info
-        desc_in_body_p =(ODB_Desc*) (MIN((uint8_t*) info->payload.buffer + info->desc.d_desc.head_size,
-                                        (uint8_t*) info->payload.body + info->payload.body_size - ODB_DESC_SIZE));
-        memcpy((void*) desc_in_body_p,(void*) &info->desc, ODB_DESC_SIZE);
-
-        DEBUG_LOG("Copy Desc to protected body :");
-        ODB_DESC_log(desc_in_body_p);
-        DEBUG_LOG("ODB : virtual recv %zu bytes over %zu total",info->bytes_read_write,payload_size);
-        DEBUG_LOG("ODB : adding mprotect to the body of the payload...");
     }
 
-    // add mprotection
-    // if problem with data protection, download the real data
-    // compute how many bytes of head are in the body    
-    if(unaligned_size <= info->bytes_read_write && ODB_SUCCESS != add_ODB_Protected_Memory(&intern_PMT,info->payload.buffer,buf_size,head_in_body,desc_in_body_p)){
-        ERROR_LOG("mprotect error -> call get_remote_payload !!");
-
-        // set state to remote data downloading
-        info->progress = ODB_DOWNLOAD_PAYLOAD;
-        // set header to real data receiving
-        info->odb_header.type = ODB_MSG_GET_PAYLOAD;
-        //info->desc.real = ODB_DESC_REAL;
-        // tell that we'll don"t need to download the header
-        info->bytes_read_write = unaligned_size - info->desc.d_desc.tail_size;
-
-        // create query to download payload
-        ODB_Query_Desc      query;
-        ODB_Local_Buffer    payload;
-        size_t              real_read = 0;
-        INIT_ODB_Query(query,ODB_MSG_GET_PAYLOAD,info->desc.d_desc.fd,info->bytes_read_write,MIN(buf_size,payload_size - info->bytes_read_write), 0);
-        INIT_ODB_Local_Buffer((&payload),info->payload.buffer,query.d_desc.body_size);
-        DEBUG_LOG("ODB getting Payload : %zu bytes with %zu offset",query.d_desc.body_size,query.d_desc.head_size);
-        if( ODB_SUCCESS != ODB_get_remote_data(&query,&info->desc.source_addr,&payload,info->bytes_read_write,&real_read) ){
-            DEBUG_LOG("Didn't get remote data !!");
-            return ODB_MPROTECT_ERROR;
-        }
-        info->bytes_read_write  += real_read;
-        *bytes_read             += real_read;
-        if(info->bytes_read_write >= info->desc.d_desc.head_size + info->desc.d_desc.body_size){
-            info->progress = ODB_RECEIVING_TAIL;
-            DEBUG_LOG("ODB : Receiving tail... \n");
-        }
-    }
+    DEBUG_LOG("ODB : virtual recv %zu bytes over %zu total",info->bytes_read_write,payload_size);
 
     return ODB_SUCCESS;
 }
@@ -1723,7 +1691,6 @@ ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags){
 // *           Read section           *
 // *                                  *
 // ************************************
-
 
 ssize_t read(int fd, void *buf, size_t count){
     #if !ODB
