@@ -314,7 +314,6 @@ void deserialize_odb_query_desc_inplace(ODB_Query_Desc *desc){
 #if DEBUG
     void Buffer_log(const void *buf,size_t buflen){
         if(buf == NULL || buflen == 0) return;
-        if(buflen > 500) return;
         for(size_t i =0;i<buflen;i++){
             char *c = (char*) buf;
             if( isprint(c[i]) || c[i]=='\n')
@@ -322,6 +321,7 @@ void deserialize_odb_query_desc_inplace(ODB_Query_Desc *desc){
             else
                 DEBUG_LOG_CH("|0x%02x|", c[i]);
             //if (i >0 && i % 80 == 0) DEBUG_LOG_CH("\n");
+            //if(i >250) break;
         }
         DEBUG_LOG_CH("\n");
     }

@@ -345,6 +345,7 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
             answer[0].iov_base = start;
             answer[0].iov_len  = MIN((size_t) diff,query->d_desc.body_size);
             DEBUG_LOG("SEND_REAL_PAYLOAD : %zu bytes from %p to %p", answer[0].iov_len, start, end);
+            //Buffer_log(answer[0].iov_base,answer[0].iov_len);
 
             if( (start + answer[0].iov_len) >= original_end) remove_buffer = 1;
         break;
@@ -362,53 +363,27 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
 
         // if request for unaligned data
         case ODB_MSG_GET_UNALIGNED_DATA:
-            // query request format : {hi, h(i+1) + b(i+1) ; ti}
-            // we assume we have :
-            // For each i, P = h(i) + b(i) + t(i) = h(0) + b(0) + t(0), 
-            // where P, h(0), b(0), t(0) are the original payload, header,body and tail sizes.
-            // Plus, for each i, bi = b(i+1) + (h(i+1) - hi) + (t(i+1) - ti)
-            // So for each i, h(i) <= h(i+1), t(i) <= t(i+1), b(i) >= b(i+1)
 
-            // There, we know {hi, h(i+1) + b(i+1) = d ; ti}
-            // we can obtain :
-            // (1) bi = P-hi-ti
-            // (2) t(i+1) = P-h(i+1)-b(i+1) = P - d
-            // (3) h(i+1) = (d + hi + (t(i+1) - ti) -bi) / 2
             // receive the last bound :
-            size_t hi = query->d_desc.head_size;
-            size_t d  = query->d_desc.body_size;
-            size_t ti = query->d_desc.tail_size;
-            
-            size_t bi     = payload_size - hi - ti;
-            size_t t_next = payload_size - d;
-            size_t h_next = (d - (hi - (t_next - ti)));
+            size_t start_head_off = MIN(query->d_desc.head_size,payload_size);
+            size_t end_head_off   = MIN(query->d_desc.body_size,payload_size);
+            size_t start_tail_off = 0;
+            size_t end_tail_off   = MIN(query->d_desc.tail_size,payload_size);
 
-             DEBUG_LOG("Computed : \n"
-                      "b(i) : %zu \n"
-                      "h(i+1) + b(i+1) : %zu \n"
-                      "head : [ %zu ; %zu ] , head_len = %zu \n"
-                      "tail : [ %zu ; %zu ] , tail_len = %zu",
-                      bi,d,
-                      hi,h_next,(size_t) (h_next - hi),
-                      ti,t_next,(size_t) (t_next - ti));
-
-            //security check
-            hi = MIN(hi,payload_size);
-            d  = MIN(d,payload_size);
-            ti = MIN(ti,payload_size);
-            bi = MIN(bi,payload_size);
-            t_next = MIN(t_next,payload_size);
-
+            // receive the last bound :
+            if(strict_recv(fd, &start_tail_off, sizeof(size_t), 0) < 0){
+                ERROR_LOG("recv(%d,%p,%zu,%d)", fd,&start_head_off,sizeof(size_t),0);
+                return ODB_SOCKET_READ_ERROR;
+            }
+            start_tail_off = MIN(start_tail_off,payload_size);
 
             // set head data iovec
-            answer[0].iov_base =(void*) ((uint8_t*) odb_buffer->buffer + hi);
-            answer[0].iov_len  = h_next > hi ? h_next - hi : 0;
-            answer[0].iov_len  = MIN(payload_size - hi,answer[0].iov_len);
+            answer[0].iov_base =(void*) ((uint8_t*) odb_buffer->buffer + start_head_off);
+            answer[0].iov_len  = end_head_off > start_head_off ? end_head_off - start_head_off : 0;
             
             // set tail data iovec
-            answer[1].iov_base = (void*) ((uint8_t*) odb_buffer->buffer + (payload_size - t_next));
-            answer[1].iov_len  = t_next > ti ? t_next - ti : 0;
-            answer[1].iov_len  = MIN(payload_size - t_next,answer[1].iov_len);
+            answer[1].iov_base = (void*) ((uint8_t*) odb_buffer->tail + odb_buffer->tail_size - start_tail_off);
+            answer[1].iov_len  = start_tail_off > end_tail_off ? start_tail_off - end_tail_off : 0;
 
             DEBUG_LOG("RAB %zu :", query->d_desc.fd);
             ODB_Local_Buffer_log(odb_buffer);
@@ -418,6 +393,8 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
                       "Tail : %zu bytes from %p ", 
                       answer[0].iov_len, answer[0].iov_base, 
                       answer[1].iov_len, answer[1].iov_base);
+            DEBUG_LOG("Head :"); //Buffer_log(answer[0].iov_base,answer[0].iov_len);
+            DEBUG_LOG("Tail :"); //Buffer_log(answer[1].iov_base,answer[1].iov_len);
         break;
 
         default:
@@ -663,10 +640,11 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
     
     switch(msg_type){
         case ODB_MSG_GET_PAYLOAD:
-            bytes_to_read = MIN(query->d_desc.body_size,payload_size - local_buff_offset);
-            start         = ((uint8_t*) buffer->buffer) + local_buff_offset;
-
-            bytes_read = strict_recv(sock, start,bytes_to_read,MSG_WAITALL);
+            bytes_to_read     = MIN(query->d_desc.body_size,payload_size);
+            local_buff_offset = MIN(local_buff_offset,payload_size - bytes_to_read);
+            start             = (uint8_t*) buffer->buffer + local_buff_offset;
+            DEBUG_LOG("Should read %zu bytes at %p with offset %zu",bytes_to_read,start,local_buff_offset);
+            bytes_read = original_recv(sock,(void*) start,bytes_to_read,0);
             if(bytes_read < 0){
                 ERROR_LOG("Payload read");
                 original_close(sock);
@@ -683,7 +661,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             bytes_to_read = MIN(payload_size - offset, query->d_desc.body_size);
             start = ((uint8_t*) buffer->buffer) + offset;
 
-            bytes_read = strict_recv(sock,(void*) start,bytes_to_read,MSG_WAITALL);
+            bytes_read = strict_recv(sock,(void*) start,bytes_to_read,0);
             if(bytes_read < 0){
                 DEBUG_LOG("[ERROR] Body read error !!");
                 original_close(sock);
@@ -697,21 +675,8 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
         break;
 
         case ODB_MSG_GET_UNALIGNED_DATA:
-            // query format :
-            //  {hi ; h(i+1) + b(i+1) ; ti}
-            // we assume we have :
-            //  Local Buffer : {h(i+1); b(i+1) ; t(i+1)}, 
-            // And Last Desc received : {h(i) ; b(i) ; t(i) }
-            // For each i, P = h(i) + b(i) + t(i) = h(0) + b(0) + t(0), 
-            // where P, h(0), b(0), t(0) are the original payload, header,body and tail sizes.
-            // So for each i, h(i) <= h(i+1), t(i) <= t(i+1), b(i) >= b(i+1)
-
-            // So locally, we know :
-            // Local Buffer : {h(i+1); b(i+1) ; t(i+1)}, 
-            // Query Desc : {hi ; h(i+1) + b(i+1) ; ti}
-
             size_t head_to_recv = buffer->head_size > query->d_desc.head_size ? buffer->head_size - query->d_desc.head_size : 0;
-            size_t tail_to_recv   = buffer->tail_size > query->d_desc.tail_size ? buffer->tail_size - query->d_desc.tail_size : 0;
+            size_t tail_to_recv = buffer->tail_size > query->d_desc.tail_size ? buffer->tail_size - query->d_desc.tail_size : 0;
             struct iovec iovecs[2] = {
                 {((uint8_t*) buffer->buffer) + buffer->head_size - head_to_recv, head_to_recv},
                 {((uint8_t*) buffer->tail), tail_to_recv}
@@ -719,8 +684,15 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             bytes_to_read     = head_to_recv + tail_to_recv;
             struct msghdr msg = MSGHDR_INITIALIZER(iovecs,2,0);
             
+            //send the last bound :
+            if(strict_send(sock,&buffer->tail_size,sizeof(buffer->tail_size),0) < 0){
+                ERROR_LOG("Tail size write error");
+                original_close(sock);
+                return ODB_SOCKET_WRITE_ERROR;
+            }
+            
             // receive unaligned data
-            bytes_read = original_recvmsg(sock,&msg,MSG_WAITALL);
+            bytes_read = original_recvmsg(sock,&msg,0);
             if( bytes_read < 0){
                 DEBUG_LOG("[ERROR] Unaligned data read error !!");
                 original_close(sock);
@@ -732,9 +704,9 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             
             DEBUG_LOG("Received %zu / %zu bytes of unaligned data",bytes_read,bytes_to_read);
             DEBUG_LOG("Head:");
-            Buffer_log(iovecs[0].iov_base,iovecs[0].iov_len);
+            //Buffer_log(iovecs[0].iov_base,iovecs[0].iov_len);
             DEBUG_LOG("Tail:");
-            Buffer_log(iovecs[1].iov_base,iovecs[1].iov_len);
+            //Buffer_log(iovecs[1].iov_base,iovecs[1].iov_len);
             *tot_bytes_read += (size_t) bytes_read;
         break;
 

@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <ucontext.h>
+#include <sys/epoll.h>
 
 // Networking
 #include <ifaddrs.h>
@@ -514,7 +515,7 @@ extern ODB_Config ODB_conf;
     ((struct msghdr){                           \
         .msg_name       = NULL,                 \
         .msg_namelen    = 0,                    \
-        .msg_iov        = (void*)(iov),         \
+        .msg_iov        = (iov),                \
         .msg_iovlen     = (iovcnt),             \
         .msg_control    = NULL,                 \
         .msg_controllen = 0,                    \
@@ -526,6 +527,8 @@ extern ODB_Config ODB_conf;
 *               IO related              *
 *                                       *
 *****************************************/
+extern          int ODB_epoll_fd;
+
 extern int     (*original_shutdown)(int sockfd, int how);
 extern ssize_t (*original_recv)(int, void*, ssize_t,int );
 extern ssize_t (*original_recvfrom)(int, void *, size_t, int,struct sockaddr*, socklen_t*);
@@ -542,6 +545,7 @@ extern int     (*original_close)(int fd);
 extern int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *len);
 extern ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags);
 extern pid_t   (*original_fork)(void);
+extern int     (*original_epoll_create)(int size);
 
 
 #endif // ODB_H

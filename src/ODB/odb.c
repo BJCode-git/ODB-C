@@ -7,7 +7,7 @@ ConnectionTable*                 down_connections 	= NULL;
 ODB_RemoteAccessBuffer*          intern_RAB       	= NULL;
 ODB_ProtectedMemoryTable*        intern_PMT       	= NULL;
 ODB_FailedRemoteAccessBuffer*    intern_Failed_RAB  = NULL;
-
+int                              ODB_epoll_fd       = -1;
 // Configuration
 ODB_Config ODB_conf = ODB_Config_INITIALIZER;
 
@@ -29,4 +29,4 @@ int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *len) = N
 ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags) = NULL;
 pid_t 	(*original_fork)(void) = NULL;
 int     (*original_shutdown)(int sockfd, int how) = NULL;
-
+int     (*original_epoll_create)(int size) = NULL;
