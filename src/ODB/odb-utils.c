@@ -33,9 +33,7 @@ static const uint8_t sht75_crc_table[] = {
 uint8_t crc8_ptr(const uint8_t *input_ptr, size_t num_bytes, uint8_t crc){
     size_t a;
     const unsigned char *ptr;
-
     ptr = input_ptr;
-
     if ( ptr != NULL ){ 
         for (a=0; a<num_bytes; a++) {
             crc = sht75_crc_table[(*ptr++) ^ crc];
@@ -62,7 +60,6 @@ void compute_ODB_Header_crc(ODB_Header *ptr){
     if (ptr == NULL) return;
 
     uint8_t crc = CRC_INIT;
-    
     crc = crc8_ptr((const uint8_t *) &(ptr->magic_number),sizeof(ptr->magic_number),CRC_INIT);
     crc = crc8_ptr((const uint8_t *) &(ptr->type),sizeof(ptr->type),crc);
     crc = crc8_ptr((const uint8_t *) &(ptr->total_size),sizeof(ptr->total_size),crc);
@@ -414,7 +411,7 @@ void deserialize_odb_query_desc_inplace(ODB_Query_Desc *desc){
         DEBUG_LOG_CH("\t ODB server address: %s:%d\n", inet_ntoa(config->ODB_serv_addr.sin_addr), ntohs(config->ODB_serv_addr.sin_port));
     }
 
-    static const char ODB_ERROR_MSG[14][50] = {
+    static const char *ODB_ERROR_MSG[14] = {
         "Incomplete",
         "Parse error",
         "Wrong message type",
@@ -550,40 +547,35 @@ int is_socket(const int sockfd) {
 }
 
 #if !ODB_STANDALONE
+#define ODB_CON_STATUS_UNDEFINED 2
 int is_ODB_allowed(int sockfd){
     struct sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
-    unsigned int peer_port = 0,local_port = 0;
+    unsigned int peer_port  = 0,
+                 local_port = 0;
     
     DEBUG_LOG("test odb socket : %d",sockfd);
-    //struct sockaddr_in peer_addr;
-    //socklen_t peer_addr_len = sizeof(peer_addr);
     if (getpeername(sockfd, (struct sockaddr *)&addr, &addr_len) < 0) {
-        perror("getpeername failed");
-        DEBUG_LOG("getpeername error : %s",strerror(errno));
-        return 0;
+        ERROR_LOG("local getsockname error");
+        return ODB_CON_STATUS_UNDEFINED;
     }
     peer_port = ntohs(addr.sin_port);
     if (getsockname(sockfd, (struct sockaddr*)&addr, &addr_len) == -1) {
-        DEBUG_LOG("getsockname error : %s",strerror(errno));
-        return 0;
+        ERROR_LOG("peer getsockname error");
+        return ODB_CON_STATUS_UNDEFINED;
     }
     local_port = ntohs(addr.sin_port);
     DEBUG_LOG("socket %d, local port : %d, peer port : %d",sockfd,local_port,peer_port);
 
-    if(peer_port == 0 || local_port == 0){
-        DEBUG_LOG("socket %d, addr : %s:%d is not ODB",sockfd,inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
-        return 0;
-    }
-    
-    for (int i = 0; i < MAX_PORTS; i++){
-        if( peer_port == ODB_conf.no_odb_ports[i] || local_port == ODB_conf.no_odb_ports[i]){
-            DEBUG_LOG("socket %d, addr : %s:%d is ODB",sockfd,inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
-            return 1;
+    if(peer_port != 0 && local_port != 0){
+        for (int i = 0; i < MAX_PORTS; i++){
+            if( peer_port == ODB_conf.no_odb_ports[i] || local_port == ODB_conf.no_odb_ports[i]){
+                DEBUG_LOG("socket %d, addr : %s:%d is ODB",sockfd,inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
+                return 1;
+            }
         }
     }
     DEBUG_LOG("socket %d, addr : %s:%d is not ODB",sockfd,inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
-
     return 0;
 }
 #endif
@@ -839,6 +831,8 @@ static ConnectionTable *add_connection(ConnectionTable **connections, int sockfd
         ODB_http_init(&entry->http_parser);
     #endif
 
+    //entry->info.wait_for_flow_control = 0;
+
    
     HASH_ADD_INT(*connections, sockfd, entry);
 
@@ -888,6 +882,10 @@ ConnectionTable *get_connection(ConnectionTable **connections, int sockfd){
             entry = add_connection(connections, sockfd);
         pthread_mutex_unlock(&CON_mutex);
         
+    }
+
+    if(entry !=NULL && entry->info.is_ODB == ODB_CON_STATUS_UNDEFINED){
+        entry->info.is_ODB = is_ODB_allowed(sockfd);
     }
 
     return entry;

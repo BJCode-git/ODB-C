@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <execinfo.h>
+
 //sys
 #include <sys/mman.h>
 #include <pthread.h>
@@ -27,6 +28,9 @@
 #include <signal.h>
 #include <ucontext.h>
 #include <sys/epoll.h>
+#include <asm/termbits.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
 
 // Networking
 #include <ifaddrs.h>
@@ -206,7 +210,7 @@ typedef enum {
 #define ODB_frame_header 0
 #define ODB_frame_desc   1
 #define ODB_frame_head   2
-//#define ODB_frame_body   3
+//#define ODB_frame_body 3
 #define ODB_frame_tail   3
 #define ODB_FRAME_SIZE   4
 typedef struct iovec ODB_Frame[ODB_FRAME_SIZE];
@@ -383,6 +387,11 @@ typedef struct {
     ODB_Desc            desc;
     ODB_Local_Buffer    payload;
 
+    // ODB flow control
+    //uint8_t             wait_for_flow_control;
+
+    struct epoll_event  event;
+
     // for http parsing
 #if USE_ODB_HTTP
     ODB_Http            http_parser;
@@ -529,7 +538,6 @@ extern ODB_Config ODB_conf;
 *****************************************/
 extern          int ODB_epoll_fd;
 
-extern int     (*original_shutdown)(int sockfd, int how);
 extern ssize_t (*original_recv)(int, void*, ssize_t,int );
 extern ssize_t (*original_recvfrom)(int, void *, size_t, int,struct sockaddr*, socklen_t*);
 extern ssize_t (*original_recvmsg)(int , struct msghdr*, int);
@@ -542,10 +550,12 @@ extern ssize_t (*original_sendto)(int, const void *, size_t , int ,const struct 
 extern ssize_t (*original_sendmsg)(int, const struct msghdr *, int);
 extern ssize_t (*original_sendfile)(int, int, off_t *, size_t);
 extern int     (*original_close)(int fd);
+extern int     (*original_shutdown)(int sockfd, int how);
 extern int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *len);
 extern ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags);
 extern pid_t   (*original_fork)(void);
 extern int     (*original_epoll_create)(int size);
+extern int     (*original_epoll_ctl)(int epfd, int op, int fd, struct epoll_event *event);
 
 
 #endif // ODB_H

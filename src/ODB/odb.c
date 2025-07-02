@@ -25,8 +25,9 @@ ssize_t (*original_sendto)(int, const void *, size_t , int ,const struct sockadd
 ssize_t (*original_sendmsg)(int, const struct msghdr *, int) = NULL;
 ssize_t (*original_sendfile)(int, int, off_t *, size_t) = NULL;
 int     (*original_close)(int fd) = NULL;
+int     (*original_shutdown)(int sockfd, int how) = NULL;
 int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *len) = NULL;
 ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags) = NULL;
 pid_t 	(*original_fork)(void) = NULL;
-int     (*original_shutdown)(int sockfd, int how) = NULL;
 int     (*original_epoll_create)(int size) = NULL;
+int     (*original_epoll_ctl)(int epfd, int op, int fd, struct epoll_event *event);

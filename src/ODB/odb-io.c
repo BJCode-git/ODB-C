@@ -76,6 +76,10 @@ void init_original_functions(){
             perror("init_original_functions : dlsym(epoll_create)");
             exit(EXIT_FAILURE);
         }
+        if( (original_epoll_ctl = dlsym(RTLD_NEXT, "epoll_ctl")) == NULL){
+            perror("init_original_functions : dlsym(epoll_ctl)");
+            exit(EXIT_FAILURE);
+        }
     //    init = 1;
     //}
 }
@@ -126,6 +130,68 @@ int epoll_create(int size){
     ODB_epoll_fd = original_epoll_create(size);
     DEBUG_LOG("epoll_create(size=%d) = %d",size,ODB_epoll_fd);
     return ODB_epoll_fd;
+}
+
+#if DEBUG
+static const char* epoll_op_str(int op) {
+    switch (op) {
+        case EPOLL_CTL_ADD: return "EPOLL_CTL_ADD";
+        case EPOLL_CTL_MOD: return "EPOLL_CTL_MOD";
+        case EPOLL_CTL_DEL: return "EPOLL_CTL_DEL";
+        default: return "UNKNOWN_OP";
+    }
+}
+#endif
+
+int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
+    if(is_socket(fd) <= 0) return original_epoll_ctl(epfd, op, fd, event);
+    #if DEBUG
+        const char *op_str = epoll_op_str(op);
+        DEBUG_LOG("epoll_ctl(epfd=%d, op=%s, fd=%d, event=%p)", epfd, op_str, fd, event);
+    #endif
+    
+    if (event) {
+        // Log event flags
+        if (event->events & EPOLLIN)     { DEBUG_LOG("  EPOLLIN");}
+        if (event->events & EPOLLOUT)    { DEBUG_LOG("  EPOLLOUT");}
+        if (event->events & EPOLLRDHUP)  { DEBUG_LOG("  EPOLLRDHUP");}
+        if (event->events & EPOLLPRI)    { DEBUG_LOG("  EPOLLPRI");}
+        if (event->events & EPOLLERR)    { DEBUG_LOG("  EPOLLERR");}
+        if (event->events & EPOLLHUP)    { DEBUG_LOG("  EPOLLHUP");}
+        if (event->events & EPOLLET)     { DEBUG_LOG("  EPOLLET (edge-triggered)");}
+        if (event->events & EPOLLONESHOT){ DEBUG_LOG("  EPOLLONESHOT");}
+        if (event->events & EPOLLEXCLUSIVE) { DEBUG_LOG("  EPOLLEXCLUSIVE (Linux-specific)");}
+
+        // log the union event data defined in struct epoll_event
+        if (event->data.ptr) {
+            DEBUG_LOG("event->data.ptr=%p", event->data.ptr);
+        }
+        else if (event->data.fd) {
+            DEBUG_LOG("event->data.fd=%d", event->data.fd);
+        }
+        else if (event->data.u32) {
+            DEBUG_LOG("event->data.u32=%u", event->data.u32);
+        }
+        else if (event->data.u64) {
+            DEBUG_LOG("event->data.u64=%lu", event->data.u64);
+        }
+
+        // for receiving
+        if( event->events & EPOLLIN ){
+            ConnectionTable *entry = get_connection(&down_connections, fd);
+            if(entry != NULL)
+                memcpy(&entry->info.event, event, sizeof(struct epoll_event));
+        }
+
+        // for sending
+        //if( event->events & EPOLLOUT ){
+        //    ConnectionTable *entry = get_connection(&up_connections, fd);
+        //    if(entry != NULL)
+        //        memcpy(&entry->info.event, event, sizeof(struct epoll_event));
+        //}
+    }
+
+    return original_epoll_ctl(epfd, op, fd, event);
 }
 
 // ************************************
@@ -510,7 +576,7 @@ static ODB_ERROR send_to_client(int sockfd,ConnectionInfo *info,int flags,size_t
         info->bytes_read_write += (size_t) ret;
     }
 
-    sleep(1);
+    //sleep(1);
     DEBUG_LOG("Wrote %zu real bytes to client %d",*bytes_written,sockfd);
     if( info->bytes_read_write >= info->desc.d_desc.head_size + info->desc.d_desc.body_size + info->desc.d_desc.tail_size){
         return ODB_SUCCESS;
@@ -583,6 +649,7 @@ static ODB_ERROR send_real(int sockfd,ConnectionInfo *info,int flags, size_t *by
 
     *bytes_written         -= ODB_HEADER_SIZE;
     DEBUG_LOG("Wrote %zu real bytes : ",*bytes_written);
+    Buffer_log(info->payload.buffer,*bytes_written);
 
     return ODB_SUCCESS;
 }
@@ -738,6 +805,80 @@ static ODB_ERROR send_virtual(int sockfd,ConnectionInfo *info,int flags, size_t 
     return ODB_SUCCESS;
 }
 
+// return -1,0 or 1 if data is available
+/*
+static int send_flow_control(int sockfd){
+    // use select to wait for data to be receive :
+    #include <sys/select.h>
+    #include <unistd.h>
+    while(1){
+        fd_set rfds;
+        struct timeval tv;
+        FD_ZERO(&rfds);
+        FD_SET(sockfd,&rfds);
+        int timeout_ms = 100;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        int ret = select(sockfd+1,&rfds,NULL,NULL,&tv);
+        if(ret < 0){
+            if(errno == EINTR) continue;
+            else return -1;
+        }
+        else if(ret == 0){
+            errno = EAGAIN;
+            return 0;
+        }
+       if (FD_ISSET(sockfd, &rfds)) {
+            uint8_t ack;
+            ssize_t n = original_recv(sockfd, &ack, sizeof(ack), 0);
+            if (n < 0) {
+                // no data available
+                return -1;
+            }
+            DEBUG_LOG("ACK received");
+            return 1;//ack == 0x42 ? 1 : 0;
+        }
+    }
+}
+*/
+
+/**
+static int recv_flow_control(int sockfd){
+    //use select to wait for data to be sent :
+    #include <sys/select.h>
+    #include <unistd.h>
+    
+    while(1){
+        fd_set rfds;
+        struct timeval tv;
+        FD_ZERO(&rfds);
+        FD_SET(sockfd,&rfds);
+        int timeout_ms = 100;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        int ret = select(sockfd+1,&rfds,NULL,NULL,&tv);
+        if(ret < 0){
+            if(errno == EINTR) continue;
+            else return -1;
+        }
+        else if(ret == 0){
+            errno = EAGAIN;
+            return 0;
+        }
+       if (FD_ISSET(sockfd, &rfds)) {
+            uint8_t ack = 0x42;
+            ssize_t n = original_send(sockfd, &ack, sizeof(ack), 0);
+            if (n < 0) {
+                // no sent done
+                return -1;
+            }
+            DEBUG_LOG("ACK sent");
+            return 1;
+        }
+    }
+}
+**/
+
 ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
     #if !ODB
         DEBUG_LOG("send(socket:%d,buf:%p,buf_len:%zu,flags:%d)",socket,buf,buf_len,flags);
@@ -776,6 +917,15 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
         errno = ENOSPC;
         return -1;
     }
+
+
+    //if(entry->info.wait_for_flow_control ==1){
+    //    while(send_flow_control(socket)!=1){
+    //        DEBUG_LOG("Waiting for flow control");
+    //        usleep(1000);
+    //    }
+    //    entry->info.wait_for_flow_control = 0;
+    //}
 
     // setup info 
     err = setup_send_info(buf,buf_len,&entry->info);
@@ -819,6 +969,11 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
     }
     
     entry->info.bytes_read_write += (size_t) bytes_written;
+    
+    // flow control for epolling
+    //if( ODB_epoll_fd >= 0 && bytes_written > 0){
+    //    entry->info.wait_for_flow_control = 1;
+    //}
     
     switch(err){
         case ODB_SUCCESS:
@@ -1691,15 +1846,38 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
     #endif
     if( ret <0){ERROR_LOG("recv(%d,%p,%zu,%d) = %zd bytes",socket,buffer,length,flags,ret);}
     // if read data, update epoll event
+    //if(ret > 0){    
+    //}
+
+    //int nread = 0;
+    //ioctl(socket, FIONREAD, &nread);
+    //if (nread >= 0) {
+    //    DEBUG_LOG("Warning: %d bytes remain in kernel buffer", nread);
+    //    // raise EPPOLLIN event with this trick
+    //    char tmp;
+    //    original_recv(socket, &tmp, 1, MSG_PEEK | MSG_DONTWAIT);
+    //}else
+    //{
+    //    ERROR_LOG("ioctl(%d,FIONREAD) = %d",socket,nread);
+    //}
+
     if(ret > 0){
-        //if(ODB_epoll_fd >= 0){
-        //    struct epoll_event ev;
-        //    ev.events = EPOLLIN;
-        //    ev.data.fd = socket;
-        //    int epoll_ret = epoll_ctl(ODB_epoll_fd,EPOLL_CTL_MOD,socket,&ev);
-        //    DEBUG_LOG("epoll_ctl(%d,EPOLL_CTL_MOD,%d) = %d",ODB_epoll_fd,socket,epoll_ret);
-        //}
+        int nread = 0;
+        if(ioctl(socket, FIONREAD, &nread) < 0){
+            ERROR_LOG("ioctl(%d,FIONREAD) = %d",socket,nread);
+        }
+        //raise an EPOLLIN event
+        if (nread > 0) {
+            DEBUG_LOG("Warning: %d bytes remain in kernel buffer", nread);
+            DEBUG_LOG("[INFO]epoll_ctl(%d,EPOLL_CTL_MOD,%d,%p)",ODB_epoll_fd,socket,&entry->info.event);
+            original_epoll_ctl(ODB_epoll_fd, EPOLL_CTL_MOD, socket, &entry->info.event);
+        }
+        else if (nread == 0) {
+            DEBUG_LOG("[Info] : 0 bytes remain in kernel buffer"); 
+        }
+
     }
+
     return ret;
 }
 
