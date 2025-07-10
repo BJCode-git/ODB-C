@@ -626,7 +626,8 @@ void create_peer_addr(struct sockaddr_in *peer_addr) {
                 //}
                 if (strncmp(ip, "0.0.0.0", 7) != 0) { 
                     // Éviter any
-                    strncpy(selected_ip, ip, INET_ADDRSTRLEN);
+                    strncpy(selected_ip, ip, INET_ADDRSTRLEN-1);
+                    selected_ip[INET_ADDRSTRLEN-1] = '\0';
                     break;
                 }
             }

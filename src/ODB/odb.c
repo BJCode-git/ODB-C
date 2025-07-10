@@ -30,4 +30,5 @@ int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *len) = N
 ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags) = NULL;
 pid_t 	(*original_fork)(void) = NULL;
 int     (*original_epoll_create)(int size) = NULL;
+int     (*original_epoll_wait)(int epfd, struct epoll_event *events, int maxevents, int timeout) = NULL;
 int     (*original_epoll_ctl)(int epfd, int op, int fd, struct epoll_event *event);

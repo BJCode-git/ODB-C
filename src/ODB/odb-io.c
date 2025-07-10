@@ -80,6 +80,10 @@ void init_original_functions(){
             perror("init_original_functions : dlsym(epoll_ctl)");
             exit(EXIT_FAILURE);
         }
+        if( (original_epoll_wait = dlsym(RTLD_NEXT, "epoll_wait")) == NULL){
+            perror("init_original_functions : dlsym(epoll_wait)");
+            exit(EXIT_FAILURE);
+        }
     //    init = 1;
     //}
 }
@@ -133,6 +137,52 @@ int epoll_create(int size){
 }
 
 #if DEBUG
+    static void epoll_log_event(struct epoll_event *event){
+        // Log event flags
+        if (event->events & EPOLLIN)     { DEBUG_LOG("  EPOLLIN");}
+        if (event->events & EPOLLOUT)    { DEBUG_LOG("  EPOLLOUT");}
+        if (event->events & EPOLLRDHUP)  { DEBUG_LOG("  EPOLLRDHUP");}
+        if (event->events & EPOLLPRI)    { DEBUG_LOG("  EPOLLPRI");}
+        if (event->events & EPOLLERR)    { DEBUG_LOG("  EPOLLERR");}
+        if (event->events & EPOLLHUP)    { DEBUG_LOG("  EPOLLHUP");}
+        if (event->events & EPOLLET)     { DEBUG_LOG("  EPOLLET (edge-triggered)");}
+        if (event->events & EPOLLONESHOT){ DEBUG_LOG("  EPOLLONESHOT");}
+        if (event->events & EPOLLEXCLUSIVE) { DEBUG_LOG("  EPOLLEXCLUSIVE (Linux-specific)");}
+
+        if (event->data.ptr) {
+            DEBUG_LOG("event->data.ptr=%p", event->data.ptr);
+        }
+        else if (event->data.fd) {
+            DEBUG_LOG("event->data.fd=%d", event->data.fd);
+        }
+        else if (event->data.u32) {
+            DEBUG_LOG("event->data.u32=%u", event->data.u32);
+        }
+        else if (event->data.u64) {
+            DEBUG_LOG("event->data.u64=%lu", event->data.u64);
+        }
+    }
+#else
+    #define epoll_log_event(event) 
+#endif
+
+int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout) {
+    DEBUG_LOG("epoll_wait(epfd=%d, events=%p, maxevents=%d, timeout=%d)", epfd, events, maxevents, timeout);
+    int ret = original_epoll_wait(epfd, events, maxevents, timeout);
+    DEBUG_LOG("epoll_wait returned %d", ret);
+
+    // Log the events
+    #if DEBUG
+        for (int i = 0; i < ret; i++) {
+            DEBUG_LOG("Event %d: fd=%d", i, events[i].data.fd);
+            epoll_log_event(&events[i]);
+        }
+    #endif
+
+    return ret;
+}
+
+#if DEBUG
 static const char* epoll_op_str(int op) {
     switch (op) {
         case EPOLL_CTL_ADD: return "EPOLL_CTL_ADD";
@@ -152,29 +202,7 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
     
     if (event) {
         // Log event flags
-        if (event->events & EPOLLIN)     { DEBUG_LOG("  EPOLLIN");}
-        if (event->events & EPOLLOUT)    { DEBUG_LOG("  EPOLLOUT");}
-        if (event->events & EPOLLRDHUP)  { DEBUG_LOG("  EPOLLRDHUP");}
-        if (event->events & EPOLLPRI)    { DEBUG_LOG("  EPOLLPRI");}
-        if (event->events & EPOLLERR)    { DEBUG_LOG("  EPOLLERR");}
-        if (event->events & EPOLLHUP)    { DEBUG_LOG("  EPOLLHUP");}
-        if (event->events & EPOLLET)     { DEBUG_LOG("  EPOLLET (edge-triggered)");}
-        if (event->events & EPOLLONESHOT){ DEBUG_LOG("  EPOLLONESHOT");}
-        if (event->events & EPOLLEXCLUSIVE) { DEBUG_LOG("  EPOLLEXCLUSIVE (Linux-specific)");}
-
-        // log the union event data defined in struct epoll_event
-        if (event->data.ptr) {
-            DEBUG_LOG("event->data.ptr=%p", event->data.ptr);
-        }
-        else if (event->data.fd) {
-            DEBUG_LOG("event->data.fd=%d", event->data.fd);
-        }
-        else if (event->data.u32) {
-            DEBUG_LOG("event->data.u32=%u", event->data.u32);
-        }
-        else if (event->data.u64) {
-            DEBUG_LOG("event->data.u64=%lu", event->data.u64);
-        }
+        epoll_log_event(event);
 
         // for receiving
         if( event->events & EPOLLIN ){
@@ -796,6 +824,7 @@ static ODB_ERROR send_virtual(int sockfd,ConnectionInfo *info,int flags, size_t 
             info->bytes_read_write += *bytes_written;
             *bytes_written = 0;
         }
+        DEBUG_LOG("Wrote %zu bytes, but should have written %zu bytes",*bytes_written,should_have_written);
         return ODB_INCOMPLETE;
     }
     
@@ -918,15 +947,6 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
         return -1;
     }
 
-
-    //if(entry->info.wait_for_flow_control ==1){
-    //    while(send_flow_control(socket)!=1){
-    //        DEBUG_LOG("Waiting for flow control");
-    //        usleep(1000);
-    //    }
-    //    entry->info.wait_for_flow_control = 0;
-    //}
-
     // setup info 
     err = setup_send_info(buf,buf_len,&entry->info);
     //errno = 0;
@@ -969,11 +989,7 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
     }
     
     entry->info.bytes_read_write += (size_t) bytes_written;
-    
-    // flow control for epolling
-    //if( ODB_epoll_fd >= 0 && bytes_written > 0){
-    //    entry->info.wait_for_flow_control = 1;
-    //}
+
     
     switch(err){
         case ODB_SUCCESS:
@@ -981,15 +997,29 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
             entry->info.bytes_read_write = 0;
         break;
         case ODB_INCOMPLETE:
-            if(bytes_written == 0){
-                errno = ENOSPC;
-                ERROR_LOG("Didn't write application data");
-                return -1;
+            DEBUG_LOG("send %zu bytes, but not all data sent",bytes_written);
+            int queued_bytes;
+            if (ioctl(socket, TIOCOUTQ, &queued_bytes) == 0) {
+                DEBUG_LOG("[WARNING]Octets en attente d'envoi dans le buffer kernel : %d\n", queued_bytes);
+            }
+            else {
+                ERROR_LOG("ioctl failed");
             }
         break;
         case ODB_SOCKET_WRITE_ERROR:
             ERROR_LOG("ODB_SOCKET_WRITE_ERROR with socket %d",socket);
-            errno = EAGAIN;
+            int recv_errno = errno;
+            int q_bytes;
+            if (ioctl(socket, TIOCOUTQ, &q_bytes) == 0) {
+                int send_buff_size = 0;
+                socklen_t optlen = sizeof(send_buff_size);
+                getsockopt(socket, SOL_SOCKET, SO_SNDBUF, &send_buff_size, &optlen);
+                DEBUG_LOG("[WARNING]Octets en attente d'envoi dans le buffer kernel : %d / %d\n", q_bytes, send_buff_size);
+            }
+            else {
+                ERROR_LOG("ioctl failed");
+            }
+            errno = recv_errno;
             return -1;
         break;
         default:
@@ -1082,7 +1112,7 @@ ssize_t write(int fd, const void *buf, size_t len){
 ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
     ssize_t ret = 0;
     errno = 0;
-    DEBUG_LOG("ODB writev(socket=%d, iov=%p, iovcnt=%d)",socket,iov,iovcnt);
+    DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d)",socket,iov,iovcnt);
     #if !ODB
         ret = original_writev(socket,iov,iovcnt);
     #else
@@ -1104,8 +1134,9 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
                 ret += local_ret;
                 // if we didn't write all the iov, stop
                 if((size_t) local_ret < iov[i].iov_len){
-                    errno = EWOULDBLOCK;
-                    return -1;
+                    //errno = EAGAIN;
+                    ERROR_LOG("writev : wrote only %zd bytes, expected %zu",local_ret,iov[i].iov_len);
+                    return ret;
                 }
             }
             DEBUG_LOG("writev %zd / %zu bytes ", ret,tot_len);
@@ -1523,6 +1554,12 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
         //Buffer_log(info->payload.tail,info->payload.tail_size);
     }
 
+    if(info->bytes_read_write < unaligned_size){
+        DEBUG_LOG("ODB : Receiving unaligned data incomplete, waiting for more data... \n");
+        return ODB_INCOMPLETE;
+    }
+    
+
     if( unaligned_size <= info->bytes_read_write ){
 
         // compute new desc for the payload
@@ -1581,6 +1618,7 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
         DEBUG_LOG("Actual tail adress : %p vs stored tail adress : %p until %p",info->payload.tail,iov[1].iov_base, iov[1].iov_base + iov[1].iov_len);
     }
 
+
     DEBUG_LOG("ODB : virtual recv %zu bytes over %zu total",info->bytes_read_write,payload_size);
 
     return ODB_SUCCESS;
@@ -1623,7 +1661,6 @@ static ODB_ERROR recv_payload(int socket, void *buffer, size_t *length, int flag
             // so we will receive the header, download the body from remote, and then receive the tail
             // set state to header receiving
             info->progress = ODB_RECEIVING_HEAD;
-            // call recv_virtual_to_real
             err = recv_virtual_to_real(socket,length,flags,info);
         }
         // else we can receive virtual data normally 
@@ -1678,6 +1715,7 @@ static ODB_ERROR recv_file(void *buffer, size_t *bytes_read, ConnectionInfo *inf
 }
 
 ssize_t recv(int socket, void *buffer, size_t length, int flags) {
+    errno = 0;
     DEBUG_LOG("ODB recv(socket=%d, buffer=%p, length=%zu, flags=%d)", socket, buffer, length, flags);
     #if !ODB
         ssize_t no_odb_ret = original_recv(socket,buffer,length,flags);
@@ -1698,9 +1736,7 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
     if (is_socket(socket) <= 0){
         DEBUG_LOG("recv : %d not a socket",socket);
         ssize_t o_ret = original_recv(socket,buffer,length,flags);
-        if(o_ret >0){
-            DEBUG_LOG("Received : "); //Buffer_log(buffer, (size_t) o_ret);
-        }
+        if(o_ret >0){ DEBUG_LOG("Received : "); }
         return o_ret;
     }
 
@@ -1720,20 +1756,16 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
     
     // if we didn't get or create connection
     if (entry == NULL || up_entry == NULL){
-        ERROR_LOG("recv : get_connection no connection found or created");
         errno = ENOMEM;
+        ERROR_LOG("no connection found or created for %d",socket);
         return -1;
     }
 
-    // if it's not an ODB_Connection and we have not enough queried bytes to try to read header
-    // we'll abort ODB read
-    // && entry->info.bytes_read_write + length < ODB_HEADER_SIZE
+    // if it's not an ODB_Connection and we don't have to restore data from cache 
     if(entry->info.is_ODB == 0 && entry->info.progress == ODB_NONE){
         DEBUG_LOG("%d not an ODB connection, original_recv",socket);
         ssize_t ret = original_recv(socket, buffer, length, flags);
-        if(ret>0){
-            DEBUG_LOG("Received : "); //Buffer_log(buffer,(size_t) ret);
-        }
+        if(ret>0){DEBUG_LOG("Received : "); }
         return ret;
     }
 
@@ -1761,7 +1793,11 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
             DEBUG_LOG("ODB read: get remote payload (state ODB_DOWNLOAD_PAYLOAD) !!");
             INIT_ODB_Local_Buffer(&entry->info.payload, buffer, length);
             err = recv_virtual_to_real(socket,&length,flags,&entry->info);
-            if(ODB_SUCCESS == err || ODB_INCOMPLETE == err){
+            if(ODB_INCOMPLETE == err && entry->info.odb_header.type != ODB_MSG_SEND_REAL){
+                errno = EAGAIN;
+                ret = -1;
+            }
+            else if(ODB_SUCCESS == err || ODB_INCOMPLETE == err){
                 ret = length;
                 DEBUG_LOG("ODB read: get remote payload of max size %zu !!",length);
             }
@@ -1823,7 +1859,14 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
             DEBUG_LOG("ODB : Parsing payload ...");
             up_entry->info.is_ODB = 1;
             err = recv_payload(socket,buffer,&length,flags,&entry->info);
-            if(err == ODB_SUCCESS || err == ODB_INCOMPLETE) ret += length;
+            if(err == ODB_SUCCESS || err == ODB_INCOMPLETE){
+                ret += length;
+                if(entry->info.odb_header.type == ODB_MSG_SEND_VIRTUAL && err == ODB_INCOMPLETE){
+                    errno = EAGAIN;
+                    ERROR_LOG("Incomplete read, read only %zu bytes",ret);
+                    ret = -1;
+                }
+            }
             else {
                 ERROR_LOG("ODB payload progress return -1");
                 ret = -1;
@@ -1838,45 +1881,33 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
     ODB_State_log(entry->info.progress);
     DEBUG_LOG("recv(socket=%d, buffer=%p, length=%zu, flags=%d) = %zd bytes",socket,buffer,length,flags,ret);
     #if DEBUG
-        if(entry->info.progress == ODB_NONE){
-            frame_count++;
-        }
-        if (ret > 0)
-            tot_bytes_recv += (size_t) ret;
+        if(entry->info.progress == ODB_NONE) frame_count++;
+        if (ret > 0) tot_bytes_recv += (size_t) ret;
     #endif
     if( ret <0){ERROR_LOG("recv(%d,%p,%zu,%d) = %zd bytes",socket,buffer,length,flags,ret);}
-    // if read data, update epoll event
-    //if(ret > 0){    
-    //}
 
-    //int nread = 0;
-    //ioctl(socket, FIONREAD, &nread);
-    //if (nread >= 0) {
-    //    DEBUG_LOG("Warning: %d bytes remain in kernel buffer", nread);
-    //    // raise EPPOLLIN event with this trick
-    //    char tmp;
-    //    original_recv(socket, &tmp, 1, MSG_PEEK | MSG_DONTWAIT);
-    //}else
-    //{
-    //    ERROR_LOG("ioctl(%d,FIONREAD) = %d",socket,nread);
-    //}
 
-    if(ret > 0){
+    //if(ret > 0){
+    
         int nread = 0;
+        int recv_errno = errno;
         if(ioctl(socket, FIONREAD, &nread) < 0){
             ERROR_LOG("ioctl(%d,FIONREAD) = %d",socket,nread);
         }
         //raise an EPOLLIN event
-        if (nread > 0) {
+        if (nread > 0 ){
             DEBUG_LOG("Warning: %d bytes remain in kernel buffer", nread);
-            DEBUG_LOG("[INFO]epoll_ctl(%d,EPOLL_CTL_MOD,%d,%p)",ODB_epoll_fd,socket,&entry->info.event);
-            original_epoll_ctl(ODB_epoll_fd, EPOLL_CTL_MOD, socket, &entry->info.event);
+           
+            if(ODB_epoll_fd > 0 ){
+                DEBUG_LOG("[INFO]epoll_ctl(%d,EPOLL_CTL_MOD,%d,%p)",ODB_epoll_fd,socket,&entry->info.event);
+                epoll_log_event(&entry->info.event);
+                original_epoll_ctl(ODB_epoll_fd, EPOLL_CTL_MOD, socket, &entry->info.event);
+            }
         }
-        else if (nread == 0) {
-            DEBUG_LOG("[Info] : 0 bytes remain in kernel buffer"); 
-        }
-
-    }
+        else if (nread == 0) { DEBUG_LOG("[Info] : 0 bytes remain in kernel buffer");}
+        errno = recv_errno;
+    
+    //}
 
     return ret;
 }

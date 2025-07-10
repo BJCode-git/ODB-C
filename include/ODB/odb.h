@@ -555,6 +555,7 @@ extern int     (*original_accept)(int sockfd, struct sockaddr *adr, socklen_t *l
 extern ssize_t (*original_splice)(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags);
 extern pid_t   (*original_fork)(void);
 extern int     (*original_epoll_create)(int size);
+extern int     (*original_epoll_wait)(int epfd, struct epoll_event *events, int maxevents, int timeout);
 extern int     (*original_epoll_ctl)(int epfd, int op, int fd, struct epoll_event *event);
 
 

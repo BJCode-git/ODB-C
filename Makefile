@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -Werror -pthread #-pedantic
+CFLAGS=-Wall -Wextra -Werror -pthread -O2 #-pedantic
 LDFLAGS=-pthread
 VALGRIND=valgrind --tool=memcheck --track-origins=yes --show-leak-kinds=all --errors-for-leak-kinds=all --read-var-info=yes --leak-check=full --verbose  
 BIN_DIR=bin

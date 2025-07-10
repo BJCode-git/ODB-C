@@ -54,7 +54,7 @@ sudo make clean-debug && make debug || { echo "❌ Échec compilation principale
 build_lib() {
   local tier_name=$1
   echo "[INFO] Compilation de lib/lib${tier_name}_odb.so"
-  make USE_STANDALONE=0 USE_ODB="$use_odb" DEBUG="$use_debugging" "lib/lib${tier_name}_odb.so" 1> /dev/null || {
+  make -j$(nproc) USE_STANDALONE=0 USE_ODB="$use_odb" DEBUG="$use_debugging" "lib/lib${tier_name}_odb.so" 1> /dev/null || {
     echo "❌ Échec compilation lib${tier_name}_odb.so"
     exit 1
   }
