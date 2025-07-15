@@ -712,7 +712,7 @@ static ODB_ERROR send_virtual_transmit(int sockfd,ConnectionInfo *info,int flags
     //Buffer_log(frame[ODB_frame_tail].iov_base,frame[ODB_frame_tail].iov_len);
 
     // send ODB message
-    ret = original_sendmsg(sockfd,&msg,flags);
+    ret = strict_sendmsg(sockfd,&msg,flags);//original_sendmsg(sockfd,&msg,flags);
     if( ret < 0 ){
         ERROR_LOG("virtualised sendmsg failed");
         return ODB_SOCKET_WRITE_ERROR;
@@ -802,9 +802,8 @@ static ODB_ERROR send_virtual(int sockfd,ConnectionInfo *info,int flags, size_t 
     DEBUG_LOG("Virtual Desc :"); ODB_DESC_log(&info->desc);
     DEBUG_LOG("Virtual Header :"); ODB_HEADER_log(&info->odb_header);
     DEBUG_LOG("Remote Buffer : ");  ODB_Local_Buffer_log(&info->payload);
-    DEBUG_LOG("Tail : "); //Buffer_log(frame[3].iov_base,frame[3].iov_len);
     serialize_odb_desc_inplace(&info->desc);
-    ssize_t ret = original_sendmsg(sockfd,&msg,flags);
+    ssize_t ret = strict_sendmsg(sockfd,&msg,flags);//original_sendmsg(sockfd,&msg,flags);
     if( ret < 0 ){
         ERROR_LOG("Error with virtualized sendmsg");
         deserialize_odb_desc_inplace(&info->desc);
@@ -818,13 +817,11 @@ static ODB_ERROR send_virtual(int sockfd,ConnectionInfo *info,int flags, size_t 
     const size_t should_have_written = info->desc.d_desc.head_size + info->desc.d_desc.tail_size + ODB_HEADER_SIZE + ODB_DESC_SIZE;
     if(should_have_written > info->bytes_read_write + *bytes_written ) {
         ERROR_LOG("Wrote %zu / %zu real bytes",*bytes_written,should_have_written);
-        // copy rab info to the connection info (in order to be able to resume sending)
-        //memcpy(&info->payload, rab_buffer, sizeof(ODB_Local_Buffer));
         if(info->bytes_read_write + *bytes_written < ODB_HEADER_SIZE + ODB_DESC_SIZE){
             info->bytes_read_write += *bytes_written;
             *bytes_written = 0;
         }
-        DEBUG_LOG("Wrote %zu bytes, but should have written %zu bytes",*bytes_written,should_have_written);
+        
         return ODB_INCOMPLETE;
     }
     
@@ -1143,17 +1140,19 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
         }
     #endif
 
-    //if(ret > 0){ IOV_log(iov,iovcnt);}
-    if(ret < 0){ERROR_LOG("writev");}
-    //if(errno==EAGAIN || errno==EWOULDBLOCK){
-    //    determine if FNDELAY is set
-    //    int flags = fcntl(socket,F_GETFL,0);
-    //    if(flags & FNDELAY){
-    //        errno = EAGAIN;
-    //        ret = -1;
-    //    }
-    //}
-    DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d) = %zd bytes",socket,iov,iovcnt,ret);
+
+    if(ret < 0){ERROR_LOG("writev");
+        if(errno==EAGAIN || errno==EWOULDBLOCK){
+            // determine if FNDELAY is set
+            int flags = fcntl(socket,F_GETFL,0);
+            if(flags & FNDELAY){
+                errno = EAGAIN;
+                ret   = 0;
+            }
+        }
+    }
+    else {DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d) = %zd bytes",socket,iov,iovcnt,ret);}
+    
     return ret;
 }
 
@@ -1270,8 +1269,8 @@ static ODB_ERROR recv_ODB_Header_and_Desc(int socket, void *buffer, size_t lengt
         // Receiving Header
         copy_to      = ((uint8_t *) &(info->odb_header)) + info->bytes_read_write;
         bytes_to_rec = ODB_HEADER_SIZE - info->bytes_read_write;
-        
-        bytes_rec    = original_recv(socket, copy_to, bytes_to_rec, flags);
+        bytes_rec    = strict_recv(socket, copy_to, bytes_to_rec,flags); 
+        //original_recv(socket, copy_to, bytes_to_rec, flags);
         
         if(bytes_rec < 0){
             if((errno == EAGAIN || errno == EWOULDBLOCK)){
@@ -1324,7 +1323,8 @@ static ODB_ERROR recv_ODB_Header_and_Desc(int socket, void *buffer, size_t lengt
         // Receiving Desc
         copy_to      = ((uint8_t *) &(info->desc)) + info->bytes_read_write - ODB_HEADER_SIZE;
         bytes_to_rec = ODB_DESC_SIZE + ODB_HEADER_SIZE - info->bytes_read_write;
-        bytes_rec    = original_recv(socket, copy_to, bytes_to_rec, flags);
+        bytes_rec    = strict_recv(socket, copy_to, bytes_to_rec, flags);
+        //original_recv(socket, copy_to, bytes_to_rec, flags);
 
         if(bytes_rec < 0){
             if((errno == EAGAIN || errno == EWOULDBLOCK)){
@@ -1886,8 +1886,23 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
     #endif
     if( ret <0){ERROR_LOG("recv(%d,%p,%zu,%d) = %zd bytes",socket,buffer,length,flags,ret);}
 
+    if(ret < 0 && entry->info.progress != ODB_NONE){
+        int saved_errno = errno;
+        if( wait_for_availability(socket) < 0 ){
+            ERROR_LOG("wait_for_availability(%d) failed",socket);
+            // if we can't wait for availability, we return the error
+            ret = -1;
+            errno = saved_errno; // restore errno
+            exit(1); // exit if we can't wait for availability
+        }
+        else{
+            // if we can wait for availability, we try to read again
+            DEBUG_LOG("wait_for_availability(%d) success, retrying recv",socket);
+            ret = recv(socket,buffer,length,flags);
+        }
+    }
 
-    //if(ret > 0){
+    if(ret > 0 || entry->info.progress != ODB_NONE){
     
         int nread = 0;
         int recv_errno = errno;
@@ -1900,14 +1915,17 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
            
             if(ODB_epoll_fd > 0 ){
                 DEBUG_LOG("[INFO]epoll_ctl(%d,EPOLL_CTL_MOD,%d,%p)",ODB_epoll_fd,socket,&entry->info.event);
+                // only apply EPOLLIN or EPOLLOUT
+                entry->info.event.events &= (EPOLLIN | EPOLLOUT);
                 epoll_log_event(&entry->info.event);
                 original_epoll_ctl(ODB_epoll_fd, EPOLL_CTL_MOD, socket, &entry->info.event);
+                if (recv_errno == EAGAIN) recv_errno = EINTR; // to avoid EAGAIN in the next recv
             }
         }
         else if (nread == 0) { DEBUG_LOG("[Info] : 0 bytes remain in kernel buffer");}
         errno = recv_errno;
     
-    //}
+    }
 
     return ret;
 }

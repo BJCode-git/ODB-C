@@ -42,9 +42,8 @@ sudo sysctl -w net.ipv4.tcp_rmem="65536 65536 65536"
 sudo sysctl -w net.ipv4.tcp_wmem="65536 65536 65536"
 
 # ==== Nettoyage fichiers et SHM ====
-echo "[INFO] Suppression des fichiers debug et mémoire partagée..."
+echo "[INFO] Suppression des fichiers debug"
 rm -f debug/*
-ipcrm --all=shm
 
 # ==== Compilation projet ====
 echo "[INFO] Compilation du projet..."

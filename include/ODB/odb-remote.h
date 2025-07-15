@@ -14,6 +14,8 @@ typedef struct Thread_args{
 
 extern uint8_t         ODB_server_created;
 
+int wait_for_availability(int fd);
+
 ssize_t strict_writev(int fd, const struct iovec *iov, int iovcnt);
 
 ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags);

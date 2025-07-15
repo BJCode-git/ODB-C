@@ -5,21 +5,36 @@
 #include <dlfcn.h>
 #include <sys/select.h>
 
+int wait_for_availability(int fd) {
+    fd_set rfds;
+    struct timeval tv;
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 200000;  // 200 ms as Naggle's algorithm suggests
+    DEBUG_LOG("[INFO]Waiting for fd %d to become available...", fd);
+    int ret = select(fd + 1, &rfds, NULL, NULL, &tv);
+    //if(ret < 0) {
+    //    //save error in a file 
+    //    FILE *error_file = fopen("select_error.log", "a");
+    //    fprintf(error_file, "select() failed: %s\n", strerror(errno));
+    //    fclose(error_file);
+    //    exit(EXIT_FAILURE);
+    //}
+    return ret;
+}
+
 ssize_t strict_writev(int fd, const struct iovec *iov, int iovcnt) {
     ssize_t total_sent = 0;
     int i = 0;
     size_t offset = 0;
+    struct iovec *tmp_iov = malloc(sizeof(struct iovec) * iovcnt);
+    if (NULL == tmp_iov) {
+        errno = ENOSPC;
+        return -1;
+    }
 
     while (i < iovcnt) {
-        // Attente si nécessaire
-        fd_set wfds;
-        FD_ZERO(&wfds);
-        FD_SET(fd, &wfds);
-        if (select(fd + 1, NULL, &wfds, NULL, NULL) < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-
         // Création d’un iov temporaire sans copie
         struct iovec tmp[iovcnt - i];
         for (int j = i, k = 0; j < iovcnt; ++j, ++k) {
@@ -29,8 +44,19 @@ ssize_t strict_writev(int fd, const struct iovec *iov, int iovcnt) {
 
         ssize_t n = original_writev(fd, tmp, iovcnt - i);
         if (n < 0) {
-            //if (errno == EINTR) continue;
-            //if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
+            if (errno == EINTR) continue;
+            if( errno == EAGAIN || errno == EWOULDBLOCK ){
+                // wait for fd to become readable
+                if (wait_for_availability(fd) < 0) {
+                    ERROR_LOG("wait_for_availability(%d) -> select() failed", fd);
+                    errno = EAGAIN;
+                    free(tmp_iov);
+                    return total_sent == 0 ? (ssize_t) -1 : (ssize_t) total_sent;
+                }
+                // if select returns, try to read again
+                continue;
+            }
+            free(tmp_iov);
             return total_sent == 0 ? (ssize_t) -1 : (ssize_t) total_sent;
         }
 
@@ -46,54 +72,91 @@ ssize_t strict_writev(int fd, const struct iovec *iov, int iovcnt) {
         offset += remaining;
     }
 
+    free(tmp_iov);
     return total_sent;
 }
 
 ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
     ssize_t total_sent = 0;
-    int i = 0;
-    size_t offset = 0;
+    size_t i = 0;
+    struct msghdr tmp;
+    memcpy(&tmp, msg, sizeof(struct msghdr));
 
-    while (i < (int)msg->msg_iovlen) {
-        // Attente si nécessaire
-        fd_set wfds;
-        FD_ZERO(&wfds);
-        FD_SET(fd, &wfds);
-        if (select(fd + 1, NULL, &wfds, NULL, NULL) < 0) {
-            if (errno == EINTR) continue;
-            return -1;
-        }
-
-        struct msghdr tmp = *msg;
-        tmp.msg_iov = (struct iovec *)&msg->msg_iov[i];
-        tmp.msg_iovlen = msg->msg_iovlen - i;
-
-        // On ne modifie pas les buffers originaux
-        struct iovec first = tmp.msg_iov[0];
-        first.iov_base = (char *)first.iov_base + offset;
-        first.iov_len -= offset;
-
-        tmp.msg_iov[0] = first;
-
-        ssize_t n = original_sendmsg(fd, &tmp, flags);
-        if (n < 0) {
-            //if (errno == EINTR) continue;
-            //if (errno == EAGAIN || errno == EWOULDBLOCK) continue;
-            return total_sent == 0 ? (ssize_t) -1 : (ssize_t)total_sent;
-        }
-
-        total_sent += n;
-
-        // Mise à jour de l’état
-        ssize_t remaining = n;
-        while (i < (int)msg->msg_iovlen && remaining >= (ssize_t)(msg->msg_iov[i].iov_len - offset)) {
-            remaining -= (msg->msg_iov[i].iov_len - offset);
-            i++;
-            offset = 0;
-        }
-        offset += remaining;
+    if(msg->msg_iovlen == 0 || msg->msg_iov == NULL) {
+        ERROR_LOG("sendmsg called with empty iov");
+        errno = EINVAL;
+        return -1;
     }
 
+    // copy the iovecs to a temporary array
+    struct iovec *iov_copy = malloc(sizeof(struct iovec) * msg->msg_iovlen);
+    if (iov_copy == NULL) {
+        ERROR_LOG("sendmsg(%d) -> malloc() failed", fd);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    memcpy(iov_copy, msg->msg_iov, sizeof(struct iovec) * msg->msg_iovlen);
+
+    tmp.msg_iov = iov_copy;
+    tmp.msg_iovlen = msg->msg_iovlen;
+    
+    
+    DEBUG_LOG("sendmsg(socket=%d, iov=%p, iovcnt=%lu) called with iovs :", fd, tmp.msg_iov, tmp.msg_iovlen);
+    IOV_log(iov_copy, msg->msg_iovlen);
+    while (i < msg->msg_iovlen) {
+
+        while (i < msg->msg_iovlen && iov_copy[i].iov_len == 0) i++;
+        if (i >= msg->msg_iovlen) break;
+
+        // set the temporary msghdr to send only the remaining iovecs
+        tmp.msg_iov = &(iov_copy[i]);
+        tmp.msg_iovlen = msg->msg_iovlen - i;
+
+        DEBUG_LOG("original_sendmsg(socket=%d, iov=%p, iovcnt=%lu), should write :", fd, tmp.msg_iov, tmp.msg_iovlen);
+        IOV_log(tmp.msg_iov, tmp.msg_iovlen);
+        
+        ssize_t n = original_sendmsg(fd, &tmp, flags);
+
+        // Update send state
+        DEBUG_LOG("original_sendmsg wrote %zd bytes", n);
+        size_t offset = n < 0 ? 0 : (size_t) n;
+        while (offset > 0 && i < msg->msg_iovlen) {
+            if (offset >= iov_copy[i].iov_len) {
+                offset -= iov_copy[i].iov_len;
+                i++;
+            } 
+            else {
+                iov_copy[i].iov_base = (void *) ((uint8_t *)iov_copy[i].iov_base + offset);
+                iov_copy[i].iov_len -= offset;
+                offset = 0;
+            }
+        }
+        DEBUG_LOG("next i = %zu, offset = %zu", i, offset);
+
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            if( errno == EAGAIN || errno == EWOULDBLOCK ){
+                // wait for fd to become readable
+                if (wait_for_availability(fd) < 0) {
+                    ERROR_LOG("wait_for_availability(%d) -> select() failed", fd);
+                    errno = EAGAIN;
+                     free(iov_copy);
+                    return total_sent == 0 ? (ssize_t) -1 : (ssize_t)total_sent;
+                }
+                DEBUG_LOG("[INFO] select() returned, retrying sendmsg...");
+            }
+            else{
+                free(iov_copy);
+                return total_sent == 0 ? (ssize_t) -1 : (ssize_t)total_sent;
+            }
+        }
+        else{ total_sent += n;}
+
+    }
+
+    DEBUG_LOG("sendmsg(socket=%d, iov=%p, iovcnt=%lu) = %zd bytes", fd, msg->msg_iov, msg->msg_iovlen, total_sent);
+     free(iov_copy);
     return total_sent;
 }
 
@@ -104,9 +167,18 @@ ssize_t strict_send(int fd,const void *buf, size_t count, int flags){
     while(written < count){
         ssize_t ret = original_send(fd, (const char *)buf + written, count - written,flags);
         if (ret < 0){
-            //if( errno == EAGAIN || errno == EWOULDBLOCK ) continue;
             ERROR_LOG("send(%d,%p,%zu,%d)",fd,buf,count,flags);
             if(errno == EINTR ) continue;
+            if( errno == EAGAIN || errno == EWOULDBLOCK ){
+                // wait for fd to become readable
+                if (wait_for_availability(fd) < 0) {
+                    errno = EAGAIN;
+                    ERROR_LOG("recv(%d,%p,%zu,%d) -> select() failed", fd, buf, count, flags);
+                    return written == 0 ? (ssize_t) -1 : (ssize_t)written;
+                }
+                // if select returns, try to read again
+                continue;
+            }
             return written == 0 ? (ssize_t) -1 : (ssize_t)written;
         }
         if(ret == 0){
@@ -125,10 +197,21 @@ ssize_t strict_recv(int fd, void *buf, size_t count,int flags){
     ssize_t readed = 0;
     while((size_t) readed < count){
         ssize_t ret = original_recv(fd, (char *)buf + readed, count - readed, flags);
+        //error handling
         if (ret < 0 ){
             if( errno == EINTR ) continue;
-            ERROR_LOG("recv(%d,%p,%zu,%d)", fd,buf,count,flags);
-            return readed == 0 ? -1 : readed;
+            if( errno == EAGAIN || errno == EWOULDBLOCK ){
+                // wait for fd to become readable
+                if (wait_for_availability(fd) < 0) {
+                    errno = EAGAIN;
+                    ERROR_LOG("recv(%d,%p,%zu,%d) -> select() failed", fd, buf, count, flags);
+                    return readed == 0 ? -1 : readed;
+                }
+            }
+            else{
+                ERROR_LOG("recv(%d,%p,%zu,%d)", fd,buf,count,flags);
+                return readed == 0 ? -1 : readed;
+            }
         }
         //end of stream
         else if(ret == 0){
@@ -137,6 +220,7 @@ ssize_t strict_recv(int fd, void *buf, size_t count,int flags){
         }
         else readed += ret;
     }
+
     return readed;
 }
 

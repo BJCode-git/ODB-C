@@ -325,9 +325,9 @@ void deserialize_odb_query_desc_inplace(ODB_Query_Desc *desc){
 
     void IOV_log(const struct iovec *iov, size_t iovcnt){
         for(size_t i =0 ; i<iovcnt;i++){
-            DEBUG_LOG("IOV[%zu] at %p : %zu bytes\n",i,iov[i].iov_base,iov[i].iov_len);
-            if( iov[i].iov_len < 500) 
-                Buffer_log(iov[i].iov_base,iov[i].iov_len);
+            DEBUG_LOG("IOV[%zu] : iov_base %p || iov_len %zu ",i,iov[i].iov_base,iov[i].iov_len);
+            //if( iov[i].iov_len < 500) 
+            //    Buffer_log(iov[i].iov_base,iov[i].iov_len);
         }
     }
 
