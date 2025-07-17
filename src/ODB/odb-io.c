@@ -548,13 +548,12 @@ static ODB_ERROR send_to_client(int sockfd,ConnectionInfo *info,int flags,size_t
         DEBUG_LOG("Will send %zu head bytes through socket %d ",info->desc.d_desc.head_size, sockfd);
         ret = original_send(sockfd, head,head_len,flags);
         if( ret < 0 ){
-            ERROR_LOG("head strict_send failed");
+            ERROR_LOG("head send failed");
             return ODB_SOCKET_WRITE_ERROR;
         }
         *bytes_written         += (size_t) ret;
         info->bytes_read_write += (size_t) ret;
         DEBUG_LOG("Head written %zu / %zu bytes",*bytes_written,info->desc.d_desc.head_size);
-        //Buffer_log(head,head_len);
     }
 
     // 2nd step, get all body payload data from RAB and send it back
@@ -582,7 +581,6 @@ static ODB_ERROR send_to_client(int sockfd,ConnectionInfo *info,int flags,size_t
                 return ODB_SOCKET_WRITE_ERROR;
             }
             DEBUG_LOG(" Body written: %zu / %zu bytes",(size_t)ret,info->desc.d_desc.body_size);
-            //Buffer_log(buffer,(size_t) ret);
             *bytes_written          += (size_t) ret;
             info->bytes_read_write  += (size_t) ret;
         }
@@ -599,7 +597,6 @@ static ODB_ERROR send_to_client(int sockfd,ConnectionInfo *info,int flags,size_t
             return ODB_SOCKET_WRITE_ERROR;
         }
         DEBUG_LOG("Tail written %zu / %zu bytes",(size_t) ret,info->desc.d_desc.tail_size);
-        //Buffer_log(tail,tail_len);
         *bytes_written         += (size_t) ret;
         info->bytes_read_write += (size_t) ret;
     }
@@ -677,7 +674,6 @@ static ODB_ERROR send_real(int sockfd,ConnectionInfo *info,int flags, size_t *by
 
     *bytes_written         -= ODB_HEADER_SIZE;
     DEBUG_LOG("Wrote %zu real bytes : ",*bytes_written);
-    Buffer_log(info->payload.buffer,*bytes_written);
 
     return ODB_SUCCESS;
 }
@@ -709,10 +705,10 @@ static ODB_ERROR send_virtual_transmit(int sockfd,ConnectionInfo *info,int flags
     serialize_odb_desc_inplace(&info->desc);
     
     DEBUG_LOG("Tail to write :");
-    //Buffer_log(frame[ODB_frame_tail].iov_base,frame[ODB_frame_tail].iov_len);
 
     // send ODB message
-    ret = strict_sendmsg(sockfd,&msg,flags);//original_sendmsg(sockfd,&msg,flags);
+    ret = original_sendmsg(sockfd,&msg,flags);
+    // strict_sendmsg(sockfd,&msg,flags);
     if( ret < 0 ){
         ERROR_LOG("virtualised sendmsg failed");
         return ODB_SOCKET_WRITE_ERROR;
@@ -803,7 +799,8 @@ static ODB_ERROR send_virtual(int sockfd,ConnectionInfo *info,int flags, size_t 
     DEBUG_LOG("Virtual Header :"); ODB_HEADER_log(&info->odb_header);
     DEBUG_LOG("Remote Buffer : ");  ODB_Local_Buffer_log(&info->payload);
     serialize_odb_desc_inplace(&info->desc);
-    ssize_t ret = strict_sendmsg(sockfd,&msg,flags);//original_sendmsg(sockfd,&msg,flags);
+    ssize_t ret = original_sendmsg(sockfd,&msg,flags);
+    //strict_sendmsg(sockfd,&msg,flags);
     if( ret < 0 ){
         ERROR_LOG("Error with virtualized sendmsg");
         deserialize_odb_desc_inplace(&info->desc);
@@ -920,7 +917,7 @@ ssize_t send(int socket, const void *buf, size_t buf_len, int flags){
     if( is_socket(socket) <= 0){
         ssize_t o_ret = original_send(socket,buf,buf_len,flags);
         if(o_ret>0){
-            DEBUG_LOG("Sent :");//Buffer_log(buf,(size_t) o_ret);
+            DEBUG_LOG("Sent :");
         }
         return o_ret;
     }
@@ -1041,7 +1038,6 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,const struct s
     //ODB_init();
     #if !ODB
         DEBUG_LOG("sendto(socket=%d, buf=%p, len=%zu, flags=%d)",sockfd,buf,len,flags);
-        //Buffer_log(buf,len);
         return original_sendto(sockfd,buf,len,flags,dest_addr,addrlen);
     #endif
     
@@ -1076,7 +1072,6 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags){
     #endif
 
     DEBUG_LOG("sendmsg(socket=%d, msg=%p, flags=%d) = %zd bytes",sockfd,msg,flags,ret);
-
     return ret;
 }
 
@@ -1101,7 +1096,6 @@ ssize_t write(int fd, const void *buf, size_t len){
             DEBUG_LOG("write(socket=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len,ret);
         }
     #endif
-    //if(ret > 0){//Buffer_log(buf,ret);}
     DEBUG_LOG("write(fd=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len, ret);
     return ret;
 }
@@ -1112,6 +1106,7 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
     DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d)",socket,iov,iovcnt);
     #if !ODB
         ret = original_writev(socket,iov,iovcnt);
+        return ret;
     #else
         if(iov == NULL || iovcnt == 0 || is_socket(socket)<=0){
             ret = original_writev(socket,iov,iovcnt);
@@ -1127,7 +1122,7 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
                     if(ret == 0) ret = -1;
                     break;
                 }
-                //Buffer_log(iov[i].iov_base,(size_t) local_ret);
+
                 ret += local_ret;
                 // if we didn't write all the iov, stop
                 if((size_t) local_ret < iov[i].iov_len){
@@ -1137,21 +1132,22 @@ ssize_t writev(int socket, const struct iovec *iov, int iovcnt) {
                 }
             }
             DEBUG_LOG("writev %zd / %zu bytes ", ret,tot_len);
+
+            if(ret < 0){
+                ERROR_LOG("writev");
+                if(errno==EAGAIN || errno==EWOULDBLOCK){
+                    // determine if FNDELAY is set
+                    int flags = fcntl(socket,F_GETFL,0);
+                    if(flags & FNDELAY){
+                        errno = EAGAIN;
+                        ret   = 0;
+                    }
+                }
+            }
         }
     #endif
 
-
-    if(ret < 0){ERROR_LOG("writev");
-        if(errno==EAGAIN || errno==EWOULDBLOCK){
-            // determine if FNDELAY is set
-            int flags = fcntl(socket,F_GETFL,0);
-            if(flags & FNDELAY){
-                errno = EAGAIN;
-                ret   = 0;
-            }
-        }
-    }
-    else {DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d) = %zd bytes",socket,iov,iovcnt,ret);}
+    if( ret >= 0){DEBUG_LOG("writev(socket=%d, iov=%p, iovcnt=%d) = %zd bytes",socket,iov,iovcnt,ret);}
     
     return ret;
 }
@@ -1189,10 +1185,7 @@ static void restore_from_cache(ConnectionInfo *info,void *buffer, size_t length,
                 restore_from = ((uint8_t*) &info->odb_header) + offset;
                 DEBUG_LOG("copying %zu bytes from header, with offset %zu (ODB_HEADER_SIZE = %zu)",to_read,offset,ODB_HEADER_SIZE);
                 DEBUG_LOG("copying from %p, header at %p",restore_from,&info->odb_header);
-                //Buffer_log(restore_from,to_read);
                 memcpy((void*)copy_to,(void*) restore_from,to_read);
-                DEBUG_LOG("Copied buffer:");
-                //Buffer_log(copy_to,to_read);
                 info->bytes_read_write -= to_read;
                 info->is_ODB           += (uint8_t) to_read;
                 *read_bytes            += to_read;
@@ -1231,7 +1224,6 @@ static void restore_from_cache(ConnectionInfo *info,void *buffer, size_t length,
     *read_bytes  += to_read;
     memcpy((void*)copy_to,(void*) restore_from,to_read);
     DEBUG_LOG("Copied buffer:");
-    //Buffer_log(copy_to,to_read);
     //update info
     info->bytes_read_write -= to_read;
     info->progress = info->bytes_read_write == 0 ? ODB_NONE : info->progress;
@@ -1269,8 +1261,8 @@ static ODB_ERROR recv_ODB_Header_and_Desc(int socket, void *buffer, size_t lengt
         // Receiving Header
         copy_to      = ((uint8_t *) &(info->odb_header)) + info->bytes_read_write;
         bytes_to_rec = ODB_HEADER_SIZE - info->bytes_read_write;
-        bytes_rec    = strict_recv(socket, copy_to, bytes_to_rec,flags); 
-        //original_recv(socket, copy_to, bytes_to_rec, flags);
+        bytes_rec    = original_recv(socket, copy_to, bytes_to_rec, flags);
+        //strict_recv(socket, copy_to, bytes_to_rec,flags); 
         
         if(bytes_rec < 0){
             if((errno == EAGAIN || errno == EWOULDBLOCK)){
@@ -1279,7 +1271,6 @@ static ODB_ERROR recv_ODB_Header_and_Desc(int socket, void *buffer, size_t lengt
             }
             return ODB_SOCKET_READ_ERROR;
         }
-
         info->bytes_read_write  += (size_t) bytes_rec;
         
         // if we did not recv enough data -> blocking -> error, or not blocking -> incomplete 
@@ -1323,9 +1314,8 @@ static ODB_ERROR recv_ODB_Header_and_Desc(int socket, void *buffer, size_t lengt
         // Receiving Desc
         copy_to      = ((uint8_t *) &(info->desc)) + info->bytes_read_write - ODB_HEADER_SIZE;
         bytes_to_rec = ODB_DESC_SIZE + ODB_HEADER_SIZE - info->bytes_read_write;
-        bytes_rec    = strict_recv(socket, copy_to, bytes_to_rec, flags);
-        //original_recv(socket, copy_to, bytes_to_rec, flags);
-
+        bytes_rec    = original_recv(socket, copy_to, bytes_to_rec, flags);
+        // strict_recv(socket, copy_to, bytes_to_rec, flags);
         if(bytes_rec < 0){
             if((errno == EAGAIN || errno == EWOULDBLOCK)){
                 if(!is_blocking_sock)
@@ -1399,8 +1389,7 @@ static ODB_ERROR recv_real_payload(int socket,size_t *bytes_read, int flags,Conn
     *bytes_read             = (size_t) recv_bytes;
 
 
-    DEBUG_LOG("Received %zu bytes of real data : \n",*bytes_read);
-    Buffer_log(info->payload.buffer,*bytes_read);
+    DEBUG_LOG("Received %zu bytes of real data",*bytes_read);
 
     return ODB_SUCCESS;
 }
@@ -1441,7 +1430,6 @@ static ODB_ERROR recv_virtual_to_real(int socket,size_t *bytes_read, int flags,C
             ERROR_LOG("Received %zu / %zu",recv_bytes,bytes_to_read);
         }
         DEBUG_LOG("Received %zu bytes of header data : \n",(size_t) recv_bytes);
-        //Buffer_log(info->payload.buffer,(size_t) recv_bytes);
 
         info->bytes_read_write += (size_t) recv_bytes;
         *bytes_read             = (size_t) recv_bytes;
@@ -1490,7 +1478,6 @@ static ODB_ERROR recv_virtual_to_real(int socket,size_t *bytes_read, int flags,C
             ERROR_LOG("Received %zu / %zu",recv_bytes,bytes_to_read);
         }
         DEBUG_LOG("Received %zu bytes of tail data : \n",(size_t) recv_bytes);
-        //Buffer_log(info->payload.buffer + *bytes_read,(size_t) recv_bytes);
 
         info->bytes_read_write += (size_t) recv_bytes;
         *bytes_read            += (size_t) recv_bytes;
@@ -1548,10 +1535,6 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
         info->bytes_read_write += (size_t) recv_bytes;
         *bytes_read             = (size_t) recv_bytes;
         DEBUG_LOG("Received %zu / %zu bytes of unaligned data : \n",*bytes_read,unaligned_size);
-        DEBUG_LOG("Head : ");
-        //Buffer_log(info->payload.buffer,info->payload.head_size);
-        DEBUG_LOG("Tail : ");
-        //Buffer_log(info->payload.tail,info->payload.tail_size);
     }
 
     if(info->bytes_read_write < unaligned_size){
@@ -1720,7 +1703,6 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
     #if !ODB
         ssize_t no_odb_ret = original_recv(socket,buffer,length,flags);
         DEBUG_LOG("recv(socket=%d, buffer=%p, length=%zu, flags=%d) = %zd bytes",socket,buffer,length,flags,no_odb_ret);
-        if(no_odb_ret > 0){Buffer_log(buffer, (size_t) no_odb_ret);}
         return no_odb_ret;
     #endif
 
@@ -1994,7 +1976,6 @@ ssize_t read(int fd, void *buf, size_t count){
             DEBUG_LOG("read on socket(fd=%d, buf=%p, count=%zu)",fd,buf,count);
         }
         ssize_t ret = original_read(fd,buf,count);
-        //if(ret > 0){ Buffer_log(buf,ret);}
         return ret;
     #endif
     if(is_socket(fd) <= 0) return original_read(fd,buf,count);
@@ -2018,7 +1999,6 @@ ssize_t readv(int fd, const struct iovec *iov, int iovcnt){
                     break;
                 }
                 DEBUG_LOG("read(%d,%p,%zu) = %zd bytes",fd,iov[i].iov_base,iov[i].iov_len,ret);
-                //Buffer_log(iov[i].iov_base,ret);
                 ret += local_ret;
                 // stop if we didn't fullfil the iov
                 if((size_t) local_ret < iov[i].iov_len) break;
@@ -2129,13 +2109,3 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count){
     return -1;
 }
 
-/***********************************
-*                                  *
-*          Splice section          *
-*                                  *
-***********************************/
-
-ssize_t splice(int fd_in, loff_t *off_in, int fd_out,loff_t *off_out, size_t len, unsigned int flags){
-    DEBUG_LOG("splice :  fd_in=%d, off_in=%p, fd_out=%d, off_out=%p, len=%zu, flags=%u",fd_in,off_in,fd_out,off_out,len,flags);
-    return original_splice(fd_in,off_in,fd_out,off_out,len,flags);
-}

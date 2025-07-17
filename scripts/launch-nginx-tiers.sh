@@ -71,24 +71,6 @@ launch_nginx() {
   echo "Lauch $tier_name with PID $serv_pid" 
 }
 
-#launch_nginx() {
-#  local tier_name=$1
-#  local conf_file=$2
-#  echo "[INFO] Lancement nginx ($tier_name)..."
-#
-#  if [[ "$tier_name" == "IS" ]]; then
-#    echo "[DEBUG] Lancement nginx ($tier_name) avec strace (en background)"
-#
-#    sudo -E strace -ff -tt -T -e trace=recv,read,recvfrom,recvmsg,epoll_wait,epoll_pwait \
-#      -o "strace_${tier_name}" \
-#      env LD_PRELOAD="./lib/lib${tier_name}_odb.so" \
-#      nginx -c "$(pwd)/config/$conf_file" &
-#
-#  else
-#    sudo -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/$conf_file"
-#  fi
-#}
-
 case "$tier" in
   "FE"|"ALL")
     build_lib FE

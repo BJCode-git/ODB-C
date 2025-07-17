@@ -5,22 +5,17 @@
 #include <dlfcn.h>
 #include <sys/select.h>
 
+
+
 int wait_for_availability(int fd) {
     fd_set rfds;
     struct timeval tv;
     FD_ZERO(&rfds);
     FD_SET(fd, &rfds);
     tv.tv_sec = 0;
-    tv.tv_usec = 200000;  // 200 ms as Naggle's algorithm suggests
+    tv.tv_usec = 200000;  // 200 ms as Nagle's algorithm suggests
     DEBUG_LOG("[INFO]Waiting for fd %d to become available...", fd);
     int ret = select(fd + 1, &rfds, NULL, NULL, &tv);
-    //if(ret < 0) {
-    //    //save error in a file 
-    //    FILE *error_file = fopen("select_error.log", "a");
-    //    fprintf(error_file, "select() failed: %s\n", strerror(errno));
-    //    fclose(error_file);
-    //    exit(EXIT_FAILURE);
-    //}
     return ret;
 }
 
@@ -101,9 +96,8 @@ ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
     tmp.msg_iov = iov_copy;
     tmp.msg_iovlen = msg->msg_iovlen;
     
-    
-    DEBUG_LOG("sendmsg(socket=%d, iov=%p, iovcnt=%lu) called with iovs :", fd, tmp.msg_iov, tmp.msg_iovlen);
-    IOV_log(iov_copy, msg->msg_iovlen);
+    //DEBUG_LOG("sendmsg(socket=%d, iov=%p, iovcnt=%lu) called with iovs :", fd, tmp.msg_iov, tmp.msg_iovlen);
+    //IOV_log(iov_copy, msg->msg_iovlen);
     while (i < msg->msg_iovlen) {
 
         while (i < msg->msg_iovlen && iov_copy[i].iov_len == 0) i++;
@@ -113,13 +107,12 @@ ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
         tmp.msg_iov = &(iov_copy[i]);
         tmp.msg_iovlen = msg->msg_iovlen - i;
 
-        DEBUG_LOG("original_sendmsg(socket=%d, iov=%p, iovcnt=%lu), should write :", fd, tmp.msg_iov, tmp.msg_iovlen);
-        IOV_log(tmp.msg_iov, tmp.msg_iovlen);
-        
+        //DEBUG_LOG("original_sendmsg(socket=%d, iov=%p, iovcnt=%lu), should write :", fd, tmp.msg_iov, tmp.msg_iovlen);
+        //IOV_log(tmp.msg_iov, tmp.msg_iovlen);
         ssize_t n = original_sendmsg(fd, &tmp, flags);
 
         // Update send state
-        DEBUG_LOG("original_sendmsg wrote %zd bytes", n);
+        //DEBUG_LOG("original_sendmsg wrote %zd bytes", n);
         size_t offset = n < 0 ? 0 : (size_t) n;
         while (offset > 0 && i < msg->msg_iovlen) {
             if (offset >= iov_copy[i].iov_len) {
@@ -132,7 +125,7 @@ ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
                 offset = 0;
             }
         }
-        DEBUG_LOG("next i = %zu, offset = %zu", i, offset);
+        //DEBUG_LOG("next i = %zu, offset = %zu", i, offset);
 
         if (n < 0) {
             if (errno == EINTR) continue;
@@ -141,10 +134,10 @@ ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
                 if (wait_for_availability(fd) < 0) {
                     ERROR_LOG("wait_for_availability(%d) -> select() failed", fd);
                     errno = EAGAIN;
-                     free(iov_copy);
+                    free(iov_copy);
                     return total_sent == 0 ? (ssize_t) -1 : (ssize_t)total_sent;
                 }
-                DEBUG_LOG("[INFO] select() returned, retrying sendmsg...");
+                //DEBUG_LOG("[INFO] select() returned, retrying sendmsg...");
             }
             else{
                 free(iov_copy);
@@ -155,8 +148,8 @@ ssize_t strict_sendmsg(int fd, const struct msghdr *msg, int flags) {
 
     }
 
-    DEBUG_LOG("sendmsg(socket=%d, iov=%p, iovcnt=%lu) = %zd bytes", fd, msg->msg_iov, msg->msg_iovlen, total_sent);
-     free(iov_copy);
+    //DEBUG_LOG("sendmsg(socket=%d, iov=%p, iovcnt=%lu) = %zd bytes", fd, msg->msg_iov, msg->msg_iovlen, total_sent);
+    free(iov_copy);
     return total_sent;
 }
 
@@ -363,8 +356,7 @@ ODB_ERROR receive_request(int fd,ODB_Query_Desc *query) {
     if(query == NULL) return ODB_NULL_PTR;
     DEBUG_LOG("ODB server : receiving request ...");
 
-    if(strict_recv(fd, query, ODB_QUERY_DESC_SIZE,0) < 0 )
-        return ODB_SOCKET_READ_ERROR;
+    if(strict_recv(fd, query, ODB_QUERY_DESC_SIZE,0) < 0 ) return ODB_SOCKET_READ_ERROR;
 
     DEBUG_LOG("ODB server : Request received ...");
 
@@ -516,7 +508,7 @@ ODB_ERROR handle_client(void* argv) {
 
     // receive request  and answer client if success
     if( ODB_SUCCESS != receive_request(fd, &query) || ODB_SUCCESS != answer_client(fd, &query)){
-        DEBUG_LOG("handle_client : receive request error");
+        ERROR_LOG("handle_client : receive request error");
         original_close(fd);
         return ODB_UNKNOWN_ERROR;
     }
