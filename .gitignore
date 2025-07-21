@@ -6,4 +6,5 @@ rapport
 debug/*
 bin/*
 .vscode
-scripts/g5k.sh
+g5k-deploy.sh
+

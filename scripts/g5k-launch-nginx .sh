@@ -67,13 +67,13 @@ launch_nginx() {
   local conf_file=$2
   echo "[INFO] Lancement nginx ($tier_name)..."
   if [[ "$use_odb" -eq 0 ]]; then
-    sudo-g5k nginx -c "$(pwd)/config/$conf_file" || {
+    sudo-g5k nginx -c "$(pwd)/config/g5k/$conf_file" || {
       echo "❌ Échec lancement nginx ($tier_name)"
 
       exit 1
     }
   else
-    sudo-g5k -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/$conf_file" || {
+    sudo-g5k -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/g5k/$conf_file" || {
       echo "❌ Échec lancement nginx ($tier_name)"
       exit 1
     }
