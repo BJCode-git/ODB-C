@@ -35,4 +35,10 @@ done
 
 wait $wait_for
 
+#Générer les graphes CPU
+for pid in $PIDS; do
+    python3 scripts/plot-cpu.py "$CPU_MEASURE_DIR/logs/$pid.txt" --window 5 --output "$CPU_MEASURE_DIR/plots/$pid.png"
+    echo "[INFO] Graphique CPU pour PID $pid généré dans $CPU_MEASURE_DIR/plots/$pid.png"
+done
+
 echo "Mesures terminées, fichiers logs et plots dans $CPU_MEASURE_DIR"

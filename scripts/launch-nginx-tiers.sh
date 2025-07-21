@@ -51,6 +51,9 @@ sudo make clean-debug && make debug || { echo "❌ Échec compilation principale
 
 # ==== Compilation librairies selon le tier ====
 build_lib() {
+  if [[ "$use_odb" -eq 0 ]]; then
+    return
+  fi
   local tier_name=$1
   echo "[INFO] Compilation de lib/lib${tier_name}_odb.so"
   make -j$(nproc) USE_STANDALONE=0 USE_ODB="$use_odb" DEBUG="$use_debugging" "lib/lib${tier_name}_odb.so" 1> /dev/null || {
@@ -63,10 +66,18 @@ launch_nginx() {
   local tier_name=$1
   local conf_file=$2
   echo "[INFO] Lancement nginx ($tier_name)..."
-  sudo -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/$conf_file" || {
-    echo "❌ Échec lancement nginx ($tier_name)"
-    exit 1
-  }
+  if [[ "$use_odb" -eq 0 ]]; then
+    sudo nginx -c "$(pwd)/config/$conf_file" || {
+      echo "❌ Échec lancement nginx ($tier_name)"
+
+      exit 1
+    }
+  else
+    sudo -E LD_PRELOAD="./lib/lib${tier_name}_odb.so" nginx -c "$(pwd)/config/$conf_file" || {
+      echo "❌ Échec lancement nginx ($tier_name)"
+      exit 1
+    }
+  fi
   local serv_pid=$!
   echo "Lauch $tier_name with PID $serv_pid" 
 }

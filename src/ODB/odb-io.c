@@ -703,8 +703,6 @@ static ODB_ERROR send_virtual_transmit(int sockfd,ConnectionInfo *info,int flags
     DEBUG_LOG("(head) %p (tail) %p",frame[2].iov_base,frame[3].iov_base);
     compute_ODB_crc(&info->odb_header,&info->desc);
     serialize_odb_desc_inplace(&info->desc);
-    
-    DEBUG_LOG("Tail to write :");
 
     // send ODB message
     ret = original_sendmsg(sockfd,&msg,flags);
@@ -1084,19 +1082,20 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags){
 ssize_t write(int fd, const void *buf, size_t len){
     ssize_t ret = 0;
     errno = 0;
-    DEBUG_LOG("write(fd=%d, buf=%p, len=%zu)",fd,buf,len);
     #if !ODB
+        DEBUG_LOG("write(fd=%d, buf=%p, len=%zu)",fd,buf,len);
         ret = original_write(fd,buf,len);
     #else
         if(buf == NULL || len == 0 || is_socket(fd) <= 0){
             ret = original_write(fd,buf,len);
         }
         else{
+            DEBUG_LOG("write(socket=%d, buf=%p, len=%zu)",fd,buf,len);
             ret = send(fd,buf,len,0);
-            DEBUG_LOG("write(socket=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len,ret);
+            DEBUG_LOG("write(fd=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len, ret);
         }
     #endif
-    DEBUG_LOG("write(fd=%d, buf=%p, len=%zu) = %zd bytes",fd,buf,len, ret);
+   
     return ret;
 }
 
@@ -1860,30 +1859,6 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
         break;
     }
 
-    ODB_State_log(entry->info.progress);
-    DEBUG_LOG("recv(socket=%d, buffer=%p, length=%zu, flags=%d) = %zd bytes",socket,buffer,length,flags,ret);
-    #if DEBUG
-        if(entry->info.progress == ODB_NONE) frame_count++;
-        if (ret > 0) tot_bytes_recv += (size_t) ret;
-    #endif
-    if( ret <0){ERROR_LOG("recv(%d,%p,%zu,%d) = %zd bytes",socket,buffer,length,flags,ret);}
-
-    if(ret < 0 && entry->info.progress != ODB_NONE){
-        int saved_errno = errno;
-        if( wait_for_availability(socket) < 0 ){
-            ERROR_LOG("wait_for_availability(%d) failed",socket);
-            // if we can't wait for availability, we return the error
-            ret = -1;
-            errno = saved_errno; // restore errno
-            exit(1); // exit if we can't wait for availability
-        }
-        else{
-            // if we can wait for availability, we try to read again
-            DEBUG_LOG("wait_for_availability(%d) success, retrying recv",socket);
-            ret = recv(socket,buffer,length,flags);
-        }
-    }
-
     if(ret > 0 || entry->info.progress != ODB_NONE){
     
         int nread = 0;
@@ -1893,7 +1868,7 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
         }
         //raise an EPOLLIN event
         if (nread > 0 ){
-            DEBUG_LOG("Warning: %d bytes remain in kernel buffer", nread);
+            DEBUG_LOG("[WARNING]: %d bytes remain in kernel buffer", nread);
            
             if(ODB_epoll_fd > 0 ){
                 DEBUG_LOG("[INFO]epoll_ctl(%d,EPOLL_CTL_MOD,%d,%p)",ODB_epoll_fd,socket,&entry->info.event);
@@ -1906,8 +1881,16 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
         }
         else if (nread == 0) { DEBUG_LOG("[Info] : 0 bytes remain in kernel buffer");}
         errno = recv_errno;
-    
     }
+
+    ODB_State_log(entry->info.progress);
+    DEBUG_LOG("recv(socket=%d, buffer=%p, length=%zu, flags=%d) = %zd bytes",socket,buffer,length,flags,ret);
+    #if DEBUG
+        if(entry->info.progress == ODB_NONE) frame_count++;
+        if (ret > 0) tot_bytes_recv += (size_t) ret;
+    #endif
+    if( ret <0){ERROR_LOG("recv(%d,%p,%zu,%d) = %zd bytes",socket,buffer,length,flags,ret);}
+
 
     return ret;
 }
