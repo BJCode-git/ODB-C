@@ -30,10 +30,10 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
 
   echo "[INFO] Démarrage du test de charge Nginx pour la taille $size avec le mode $mode et le tier $tier"
   # Répertoires et fichiers
-  LOCUST_FILES_DIR="results/nginx//$size/locust-$mode"
-  LOCUST_GRAPH_FILES_DIR="results/nginx/$size/graphs-$mode"
-  CPU_MEASURE_DIR="results/nginx/$size/cpu-conso-$mode"
-  NGINX_PIDS_FILE="$CPU_MEASURE_DIR/nginx-pids-$mode.txt"
+  LOCUST_FILES_DIR="results/nginx/$size/$mode/locust-$tier"
+  LOCUST_GRAPH_FILES_DIR="results/nginx/$size/$mode/graphs-$tier"
+  CPU_MEASURE_DIR="results/nginx/$size/$mode/cpu-conso-$tier"
+  NGINX_PIDS_FILE="$CPU_MEASURE_DIR/nginx-pids-$tier.txt"
 
   # Paramètres du test
   PROCESS_NAME="nginx"
