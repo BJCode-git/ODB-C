@@ -1,3 +1,3 @@
-PID nginx-backend: 66776
-PID nginx-frontend: 66740
-PID nginx-inter: 66746
+PID nginx-backend: 89318
+PID nginx-frontend: 89306
+PID nginx-inter: 89312

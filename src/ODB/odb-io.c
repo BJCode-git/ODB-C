@@ -1759,12 +1759,13 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
         // restore data from cache to the buffer
         case ODB_RESTORE_FROM_HEADER: 
         case ODB_RESTORE_FROM_DESC: 
-        case ODB_RESTORE_FROM_HEADER_AND_DESC:
+        case ODB_RESTORE_FROM_HEADER_AND_DESC:{
             size_t read = 0;
             restore_from_cache(&entry->info,buffer,length,&read);
             read = MIN(length,read);
             ret = original_recv(socket,((uint8_t*)buffer + read),length-read,flags);
             ret = ret == -1 ? read : read + (size_t)ret;
+        }
         break;
         case ODB_RECEIVING_HEAD:
         case ODB_RECEIVING_TAIL:
@@ -1806,7 +1807,7 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
         case ODB_HEADER_IN_PROGRESS:
         __attribute__((fallthrough));
             /* fall through */
-        case ODB_DESC_IN_PROGRESS:
+        case ODB_DESC_IN_PROGRESS:{
             size_t rec_bytes = 0; 
             err = recv_ODB_Header_and_Desc(socket,buffer,length,&rec_bytes,flags,&entry->info);
             if(err == ODB_SUCCESS){
@@ -1834,6 +1835,7 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags) {
                 ret = -1;
                 break;
             }
+        }
          __attribute__((fallthrough));
             /* fall through */
         case ODB_PAYLOAD_IN_PROGRESS:

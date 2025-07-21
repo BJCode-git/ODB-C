@@ -402,7 +402,7 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
 
     //printf("BE thread server : Computing payload to send %zu\n", payload_size);
     switch(query->type){
-        case ODB_MSG_GET_PAYLOAD :
+        case ODB_MSG_GET_PAYLOAD :{
             // send real data, will send missing datd
             // * head_size, tail size > 0 will be used as
             // a top/bottom offset to know where to start/end
@@ -421,12 +421,11 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
             answer[0].iov_base = start;
             answer[0].iov_len  = MIN((size_t) diff,query->d_desc.body_size);
             DEBUG_LOG("SEND_REAL_PAYLOAD : %zu bytes from %p to %p", answer[0].iov_len, start, end);
-            //Buffer_log(answer[0].iov_base,answer[0].iov_len);
-
             if( (start + answer[0].iov_len) >= original_end) remove_buffer = 1;
+        }
         break;
         
-        case ODB_MSG_GET_BODY :
+        case ODB_MSG_GET_BODY: {
             DEBUG_LOG("[REMOTE SEND] Body data from fd %zu", query->d_desc.fd);
             // set the body frame
             size_t offset = MIN(query->d_desc.head_size,payload_size);
@@ -435,11 +434,10 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
             DEBUG_LOG("SEND_BODY : len = %zu",answer[0].iov_len);
             DEBUG_LOG("Sending :  %s\n",(char*) answer[0].iov_base);
             remove_buffer = 1;
+        }
         break;
-
         // if request for unaligned data
-        case ODB_MSG_GET_UNALIGNED_DATA:
-
+        case ODB_MSG_GET_UNALIGNED_DATA:{
             // receive the last bound :
             size_t start_head_off = MIN(query->d_desc.head_size,payload_size);
             size_t end_head_off   = MIN(query->d_desc.body_size,payload_size);
@@ -471,6 +469,7 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
                       answer[1].iov_len, answer[1].iov_base);
             DEBUG_LOG("Head :"); //Buffer_log(answer[0].iov_base,answer[0].iov_len);
             DEBUG_LOG("Tail :"); //Buffer_log(answer[1].iov_base,answer[1].iov_len);
+            }
         break;
 
         default:
@@ -715,7 +714,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
     uint8_t * start = NULL; //, *end = NULL;
     
     switch(msg_type){
-        case ODB_MSG_GET_PAYLOAD:
+        case ODB_MSG_GET_PAYLOAD:{
             bytes_to_read     = MIN(query->d_desc.body_size,payload_size);
             local_buff_offset = MIN(local_buff_offset,payload_size - bytes_to_read);
             start             = (uint8_t*) buffer->buffer + local_buff_offset;
@@ -730,9 +729,10 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
                 ERROR_LOG("Body read not enough !! got %zu bytes instead of %zu",(size_t) bytes_read,bytes_to_read); 
             }
             *tot_bytes_read += (size_t) bytes_read;
+        }
         break;
 
-        case ODB_MSG_GET_BODY:
+        case ODB_MSG_GET_BODY:{
             size_t offset = MIN(payload_size, query->d_desc.head_size);
             bytes_to_read = MIN(payload_size - offset, query->d_desc.body_size);
             start = ((uint8_t*) buffer->buffer) + offset;
@@ -748,9 +748,11 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             }
 
             *tot_bytes_read += (size_t) bytes_read;
+        }
         break;
 
         case ODB_MSG_GET_UNALIGNED_DATA:
+        {
             size_t head_to_recv = buffer->head_size > query->d_desc.head_size ? buffer->head_size - query->d_desc.head_size : 0;
             size_t tail_to_recv = buffer->tail_size > query->d_desc.tail_size ? buffer->tail_size - query->d_desc.tail_size : 0;
             struct iovec iovecs[2] = {
@@ -784,6 +786,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
             DEBUG_LOG("Tail:");
             //Buffer_log(iovecs[1].iov_base,iovecs[1].iov_len);
             *tot_bytes_read += (size_t) bytes_read;
+        }
         break;
 
         case ODB_MSG_GET_FILE:
@@ -794,8 +797,7 @@ ODB_ERROR ODB_get_remote_data(ODB_Query_Desc *query,struct sockaddr_in *server_a
                 original_close(sock);
                 return ODB_SOCKET_READ_ERROR;
             }
-            *tot_bytes_read += (size_t) bytes_read;
-            
+            *tot_bytes_read += (size_t) bytes_read;   
         break;
 
         default:
