@@ -33,7 +33,7 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
   LOCUST_FILES_DIR="results/nginx//$size/locust-$mode"
   LOCUST_GRAPH_FILES_DIR="results/nginx/$size/graphs-$mode"
   CPU_MEASURE_DIR="results/nginx/$size/cpu-conso-$mode"
-  NGINX_PIDS_FILE="results/nginx/$size/nginx-pids-$mode.txt"
+  NGINX_PIDS_FILE="$CPU_MEASURE_DIR/nginx-pids-$mode.txt"
 
   # Paramètres du test
   PROCESS_NAME="nginx"
@@ -43,7 +43,7 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
   LOCUST_SPAWN_RATE=50
 
   # Nettoyage des anciens résultats
-  rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/* "$NGINX_PIDS_FILE"
+  rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/*
   mkdir -p results/nginx/ "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR" "$CPU_MEASURE_DIR"
 
   # Utilise le script ./scripts/test-nginx.sh pour lancer nginx avec ODB et sans Debug

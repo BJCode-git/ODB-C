@@ -33,34 +33,33 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
   LOCUST_FILES_DIR="results/nginx//$size/locust-$mode"
   LOCUST_GRAPH_FILES_DIR="results/nginx/$size/graphs-$mode"
   CPU_MEASURE_DIR="results/nginx/$size/cpu-conso-$mode"
-  NGINX_PIDS_FILE="results/nginx/$size/nginx_pids.txt"
+  NGINX_PIDS_FILE="$CPU_MEASURE_DIR/nginx-pids-$mode.txt"
 
   # Paramètres du test
   PROCESS_NAME="nginx"
-  TEST_DURATION=10  # durée en secondes
+  TEST_DURATION=100  # durée en secondes
   TEST_PERIOD=0.1 # période en secondes (100 ms)
-  LOCUST_USERS=500
-  LOCUST_SPAWN_RATE=25
+  LOCUST_USERS=1000
+  LOCUST_SPAWN_RATE=50
 
   # Nettoyage des anciens résultats
-  rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/* "$NGINX_PIDS_FILE"
+  rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/*
   mkdir -p results/nginx/ "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR" "$CPU_MEASURE_DIR"
 
   # Utilise le script ./scripts/test-nginx.sh pour lancer nginx avec ODB et sans Debug
-  ./scripts/launch-nginx-tiers.sh "$use_odb" "$use_debug" "$tier" "$NGINX_PIDS_FILE"
+  ./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier"
 
-  # Sauvegarde les PIDs de Nginx dans le fichier nginx_pids.txt
-  if [[ -f "$NGINX_PIDS_FILE" ]]; then
-   if [[ -f "/run/nginx-backend.pid" ]]; then
-     echo "PID nginx-backend: $(cat /run/nginx-backend.pid)" >> "$NGINX_PIDS_FILE"
-   fi
-   if [[ -f "/run/nginx-frontend.pid" ]]; then
-     echo "PID nginx-frontend: $(cat /run/nginx-frontend.pid)" >> "$NGINX_PIDS_FILE"
-   fi
-   if [[ -f "/run/nginx-inter.pid" ]]; then
-     echo "PID nginx-inter: $(cat /run/nginx-inter.pid)" >> "$NGINX_PIDS_FILE"
-   fi
+  # Sauvegarde les PIDs de Nginx dans le fichier nginx_pids.txt 
+  if [[ -f "/run/nginx-backend.pid" ]]; then
+    echo "PID nginx-backend: $(cat /run/nginx-backend.pid)" >> "$NGINX_PIDS_FILE"
   fi
+  if [[ -f "/run/nginx-frontend.pid" ]]; then
+    echo "PID nginx-frontend: $(cat /run/nginx-frontend.pid)" >> "$NGINX_PIDS_FILE"
+  fi
+  if [[ -f "/run/nginx-inter.pid" ]]; then
+    echo "PID nginx-inter: $(cat /run/nginx-inter.pid)" >> "$NGINX_PIDS_FILE"
+  fi
+
 
   # Lancer le monitoring CPU + mémoire pour tous les PIDs nginx
   scripts/monitor-perf.sh "$PROCESS_NAME" "$TEST_PERIOD" "$TEST_DURATION" "$CPU_MEASURE_DIR" &

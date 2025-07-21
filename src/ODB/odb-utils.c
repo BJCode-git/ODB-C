@@ -546,8 +546,8 @@ int is_socket(const int sockfd) {
     else return 0;
 }
 
-#if !ODB_STANDALONE
 #define ODB_CON_STATUS_UNDEFINED 2
+#if !ODB_STANDALONE
 int is_ODB_allowed(int sockfd){
     struct sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
@@ -885,9 +885,11 @@ ConnectionTable *get_connection(ConnectionTable **connections, int sockfd){
         
     }
 
+    #if !ODB_STANDALONE
     if(entry !=NULL && entry->info.is_ODB == ODB_CON_STATUS_UNDEFINED){
         entry->info.is_ODB = is_ODB_allowed(sockfd);
     }
+    #endif
 
     return entry;
 }
