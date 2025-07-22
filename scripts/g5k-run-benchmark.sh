@@ -26,6 +26,9 @@ fi
 
 use_debug=0
 
+# Utilise le script suivant pour configurer et lancer nginx
+./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier"
+
 for size in "16K" "32K" "64K" "128K" "256K"; do
 
   echo "[INFO] Démarrage du test de charge Nginx pour la taille $size avec le mode $mode et le tier $tier"
@@ -44,11 +47,8 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
   LOCUST_SPAWN_RATE=50
 
   # Nettoyage des anciens résultats
-  rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/*
-  mkdir -p "$RESULTS_DIR" "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR" "$CPU_MEASURE_DIR"
-
-  # Utilise le script ./scripts/test-nginx.sh pour lancer nginx avec ODB et sans Debug
-  ./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier"
+  rm -f -r "$CPU_MEASURE_DIR"/*
+  mkdir -p "$RESULTS_DIR" "$CPU_MEASURE_DIR"
 
   # Sauvegarde les PIDs de Nginx dans le fichier nginx_pids.txt 
   if [[ -f "/run/nginx-backend.pid" ]]; then
@@ -61,12 +61,14 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
     echo "PID nginx-inter: $(cat /run/nginx-inter.pid)" >> "$NGINX_PIDS_FILE"
   fi
 
-
   # Lancer le monitoring CPU + mémoire pour tous les PIDs nginx
   scripts/monitor-perf.sh "$PROCESS_NAME" "$TEST_PERIOD" "$TEST_DURATION" "$CPU_MEASURE_DIR" &
 
-  echo "[INFO] Démarrage du test de charge avec Locust..."
   if [[  "$tier" == "FE" || "$tier" == "ALL" ]]; then
+  # Nettoyage des anciens résultats
+  rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/*
+  mkdir -p "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR"
+
   echo "[INFO] Démarrage du test de charge avec Locust..."
   # Lancer Locust en arrière-plan
   locust -f scripts/locust/locustfile.py \
@@ -86,18 +88,18 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
   MONITOR_PID=$!
   echo "[INFO] Surveillance CPU/Mémoire lancée avec PID $MONITOR_PID"
 
-  # Attendre la fin du test
-  if [[ "$tier" == "FE" || "$tier" == "ALL" ]]; then
-  wait $LOCUST_PID
-  echo "[INFO] Locust terminé."
-  fi
-
   wait $MONITOR_PID
   echo "[INFO] Monitoring terminé."
 
-  # Générer les graphes Locust
-  python3 scripts/locust/draw-locust.py "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR"
+  # Attendre la fin du test
+  if [[ "$tier" == "FE" || "$tier" == "ALL" ]]; then
+    
+    wait $LOCUST_PID
+    echo "[INFO] Locust terminé."
 
-  sleep 1
+    # Générer les graphes Locust
+    python3 scripts/locust/draw-locust.py "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR"
+  fi
 
 done;
+
