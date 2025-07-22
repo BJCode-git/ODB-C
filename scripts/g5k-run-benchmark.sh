@@ -30,9 +30,10 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
 
   echo "[INFO] Démarrage du test de charge Nginx pour la taille $size avec le mode $mode et le tier $tier"
   # Répertoires et fichiers
-  LOCUST_FILES_DIR="results/nginx/$size/$mode/locust-$tier"
-  LOCUST_GRAPH_FILES_DIR="results/nginx/$size/$mode/graphs-$tier"
-  CPU_MEASURE_DIR="results/nginx/$size/$mode/cpu-conso-$tier"
+  RESULTS_DIR="results/nginx"
+  LOCUST_FILES_DIR="$RESULTS_DIR/$size/$mode/locust-$tier"
+  LOCUST_GRAPH_FILES_DIR="$RESULTS_DIR/$size/$mode/graphs-$tier"
+  CPU_MEASURE_DIR="$RESULTS_DIR/$size/$mode/cpu-conso-$tier"
   NGINX_PIDS_FILE="$CPU_MEASURE_DIR/nginx-pids-$tier.txt"
 
   # Paramètres du test
@@ -44,7 +45,7 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
 
   # Nettoyage des anciens résultats
   rm -f -r "$LOCUST_FILES_DIR"/* "$LOCUST_GRAPH_FILES_DIR"/* "$CPU_MEASURE_DIR"/*
-  mkdir -p results/nginx/ "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR" "$CPU_MEASURE_DIR"
+  mkdir -p "$RESULTS_DIR" "$LOCUST_FILES_DIR" "$LOCUST_GRAPH_FILES_DIR" "$CPU_MEASURE_DIR"
 
   # Utilise le script ./scripts/test-nginx.sh pour lancer nginx avec ODB et sans Debug
   ./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier"
@@ -72,9 +73,10 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
     --headless \
     --tags "$size" \
     -u "$LOCUST_USERS" -r "$LOCUST_SPAWN_RATE" \
-    -H http://localhost:42000 \
+    -H http://172.16.20.:42000 \
     --run-time "${TEST_DURATION}s" \
     --csv="$LOCUST_FILES_DIR/results" \
+    --loglevel=CRITICAL \
     --only-summary &
 
     LOCUST_PID=$!
