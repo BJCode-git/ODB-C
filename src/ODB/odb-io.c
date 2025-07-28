@@ -97,16 +97,22 @@ static void ODB_init(){
     }
     // init random seed
     srand(time( NULL ));
+
     // init original functions
     init_original_functions();
+
     // create the ODB server address
     create_peer_addr(&ODB_conf.ODB_serv_addr);
+
     // load the configuration, 
     // can overwrite server address
     load_ODB_config(&ODB_conf);
+
     // install the SIGSEGV handler
     install_handler();
+
     DEBUG_LOG("ODB : Initiated !");
+
     // Debug configuration
     ODB_Config_log(&ODB_conf);
     init = 1;
@@ -1456,8 +1462,10 @@ static ODB_ERROR recv_virtual_to_real(int socket,size_t *bytes_read, int flags,C
             DEBUG_LOG("Didn't get remote data !!");
             return ODB_UNKNOWN_ERROR;
         }
+
         info->bytes_read_write  += real_read;
         *bytes_read             += real_read;
+
         DEBUG_LOG("Received %zu bytes of payload data : \n",real_read);
         if(info->bytes_read_write >= info->desc.d_desc.head_size + info->desc.d_desc.body_size){
             info->progress = ODB_RECEIVING_TAIL;
@@ -1488,7 +1496,7 @@ static ODB_ERROR recv_virtual_to_real(int socket,size_t *bytes_read, int flags,C
     }
     
     // Print received data :
-    DEBUG_LOG("All bytes received here : %zu, Total : %zu",*bytes_read,info->bytes_read_write);
+    DEBUG_LOG("Bytes received here : %zu, Total : %zu",*bytes_read,info->bytes_read_write);
 
     return ODB_SUCCESS;
 }
@@ -1635,9 +1643,9 @@ static ODB_ERROR recv_payload(int socket, void *buffer, size_t *length, int flag
         if( info->odb_header.type == ODB_MSG_SEND_REAL){
             err = recv_real_payload(socket,length,flags,info);
         }
-        //  if buffer size is not large enough or can't protect desc for virtual receiving
+        //  if buffer size is not large enough or can't protect desc for virtual receiving or the server is a frontend
         // i.e no full page mprotectable in the buffer
-        else if ( info->payload.body_size < (size_t) PAGE_SIZE || buff_size < payload_size ){
+        else if ( info->payload.body_size < (size_t) PAGE_SIZE || buff_size < payload_size || is_frontend() ) {
             DEBUG_LOG("Local Buffer is too small (%zu / %zu) for the virtual data, downloading remote payload...\n",buff_size,payload_size);
             // in this case we expect virtual data but we don't have enough buffer to store it
             // so we will receive the header, download the body from remote, and then receive the tail
@@ -1667,7 +1675,7 @@ static ODB_ERROR recv_payload(int socket, void *buffer, size_t *length, int flag
         return ODB_SUCCESS;
     }
 
-    return ODB_INCOMPLETE;
+    return err;
 }
 
 //err = recv_file(socket,buffer,&length,flags,&entry->info);

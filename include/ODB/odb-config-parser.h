@@ -4,7 +4,7 @@
 #include <ODB/odb.h>
 
 #ifndef ODB_CONF_PATH
-	#define ODB_CONF_PATH "/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/config/ODB.conf"
+	#define ODB_CONF_PATH "/etc/ODB/ODB.conf"
 #endif
 
 // get env 

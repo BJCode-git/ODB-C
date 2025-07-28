@@ -25,28 +25,17 @@ static ODB_Remote_Error_Policy parse_remote_strategy(const char *value) {
     return BEST_EFFORT;  // Valeur par défaut raisonnable
 }
 
-static ODB_Sendfile_From_Sock_Policy parse_sendfile_strategy(const char *value) {
-    if (strcmp(value, "pass_through") == 0) return PASS_THROUGH;
-    if (strcmp(value, "virtual") == 0) return VIRTUAL;
-    return PASS_THROUGH;
+static int parse_front_end(char *value) {
+    // to lowercase
+    for (size_t i = 0; i < strlen(value); i++) {
+        value[i] = tolower(value[i]);
+    }
+    if (strcmp(value, "true") == 0) return 1;
+    return 0;
 }
+
 
 /*
-void init_ODB_config(ODB_Config *config) {
-    if (!config) return;
-
-    IALIZER {.no_odb_ports={80},
-    .n_ports=1,
-    .corrupt_value=-1,
-    .r_err_strat=0,
-    .sf_so_strat=1,
-    .ms_countdown=DEFAULT_COUNTDOWN,
-    .ODB_serv_addr={0}}
-    memset(config, 0, sizeof(ODB_Config));
-}
-*/
-// Fonction de chargement
-
 static void printf_config(ODB_Config *config) {
     printf("ODB ports to ignore: ");
     for (int i = 0; i < config->n_ports; i++) {
@@ -57,7 +46,9 @@ static void printf_config(ODB_Config *config) {
     printf("ODB corrupt value: %d\n", config->corrupt_value);
     printf("ODB countdown: %d\n", config->ms_countdown);
     printf("ODB server address: %s:%d\n", inet_ntoa(config->ODB_serv_addr.sin_addr), ntohs(config->ODB_serv_addr.sin_port));
-}
+}*/
+
+// Loading and parsing config file function
 void load_ODB_config(ODB_Config *config) {
     if (!config) return;
 
@@ -66,12 +57,12 @@ void load_ODB_config(ODB_Config *config) {
 
     if (filename) fp = fopen(filename, "r");
     else{
-        printf("Using Default CONF_PATH.\n");
+        //printf("Using Default CONF_PATH.\n");
         fp = fopen(ODB_CONF_PATH, "r");
     }
 
     if (!fp){
-        printf("Config file not found. Using default values.\n");
+        //printf("Config file not found. Using default values.\n");
         return;
     }
 
@@ -101,8 +92,8 @@ void load_ODB_config(ODB_Config *config) {
             }
         } else if (strcmp(key, "remote-error-strategy") == 0) {
             config->r_err_strat = parse_remote_strategy(value);
-        } else if (strcmp(key, "sendfile-from-socket") == 0) {
-            config->sf_so_strat = parse_sendfile_strategy(value);
+        } else if (strcmp(key, "front-end") == 0) {
+            config->is_frontend = parse_front_end(value);
         } else if (strcmp(key, "corrupt-value") == 0) {
             config->corrupt_value = (int8_t)atoi(value);
         } else if (strcmp(key, "countdown") == 0) {
@@ -119,7 +110,7 @@ void load_ODB_config(ODB_Config *config) {
     }
 
     //DEBUG_LOG("ODB config loaded !");
-    printf_config(config);
+    //printf_config(config);
 
     fclose(fp);
 }

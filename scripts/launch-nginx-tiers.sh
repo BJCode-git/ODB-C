@@ -85,6 +85,7 @@ launch_nginx() {
 case "$tier" in
   "FE"|"ALL")
     build_lib FE
+    export ODB_CONF_PATH="config/ODB-FE.conf"
     launch_nginx FE nginx-frontend.conf
     ;;
 esac
@@ -92,6 +93,7 @@ esac
 case "$tier" in
   "IS"|"ALL")
     build_lib IS
+    export ODB_CONF_PATH="config/ODB.conf"
     launch_nginx IS nginx-inter.conf
     ;;
 esac
@@ -99,6 +101,7 @@ esac
 case "$tier" in
   "BE"|"ALL")
     build_lib BE
+    export ODB_CONF_PATH="config/ODB.conf"
     launch_nginx BE nginx-backend.conf
     ;;
 esac

@@ -472,17 +472,12 @@ typedef enum {
     FAKE_SEND
 } ODB_Remote_Error_Policy;
 
-typedef enum {
-    PASS_THROUGH=0,
-    VIRTUAL
-} ODB_Sendfile_From_Sock_Policy;
-
 typedef struct {
     uint16_t                        no_odb_ports[MAX_PORTS];
     uint8_t                         n_ports;
+    uint8_t                         is_frontend;
     int8_t                          corrupt_value;
     ODB_Remote_Error_Policy         r_err_strat;
-    ODB_Sendfile_From_Sock_Policy   sf_so_strat;
     uint16_t                        ms_countdown;
     struct sockaddr_in              ODB_serv_addr;
 } ODB_Config;
@@ -490,7 +485,9 @@ typedef struct {
 // global config
 extern ODB_Config ODB_conf;
 
-#define ODB_Config_INITIALIZER {.no_odb_ports={80},.n_ports=1,.corrupt_value=-1,.r_err_strat=0,.sf_so_strat=1,.ms_countdown=DEFAULT_COUNTDOWN,.ODB_serv_addr={0}}
+int is_frontend();
+
+#define ODB_Config_INITIALIZER {.no_odb_ports={80},.n_ports=1,.is_frontend=0,.corrupt_value=-1,.r_err_strat=0,.ms_countdown=DEFAULT_COUNTDOWN,.ODB_serv_addr={0}}
 
 /****************************************
 *                                       *

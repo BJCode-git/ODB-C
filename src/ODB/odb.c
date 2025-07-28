@@ -11,6 +11,10 @@ int                              ODB_epoll_fd       = -1;
 // Configuration
 ODB_Config ODB_conf = ODB_Config_INITIALIZER;
 
+int is_frontend(){
+	return ODB_conf.is_frontend;
+}
+
 // Original functions
 
 ssize_t (*original_recv)(int, void*, ssize_t,int ) = NULL;
