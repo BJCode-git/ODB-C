@@ -1,3 +1,0 @@
-PID nginx-backend: 93236
-PID nginx-frontend: 93195
-PID nginx-inter: 93201

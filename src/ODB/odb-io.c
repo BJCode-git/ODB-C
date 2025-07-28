@@ -101,12 +101,12 @@ static void ODB_init(){
     // init original functions
     init_original_functions();
 
-    // create the ODB server address
-    create_peer_addr(&ODB_conf.ODB_serv_addr);
-
     // load the configuration, 
     // can overwrite server address
     load_ODB_config(&ODB_conf);
+
+    // create the ODB server address
+    //create_peer_addr(&ODB_conf.ODB_serv_addr);
 
     // install the SIGSEGV handler
     install_handler();

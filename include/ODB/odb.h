@@ -472,7 +472,12 @@ typedef enum {
     FAKE_SEND
 } ODB_Remote_Error_Policy;
 
+#define ODB_CONFIG_FROM_DEF 0
+#define ODB_CONFIG_FROM_ENV 1
+#define ODB_CONFIG_FROM_DEF_FILE 2
+
 typedef struct {
+    uint8_t                         init_from;
     uint16_t                        no_odb_ports[MAX_PORTS];
     uint8_t                         n_ports;
     uint8_t                         is_frontend;
@@ -487,7 +492,14 @@ extern ODB_Config ODB_conf;
 
 int is_frontend();
 
-#define ODB_Config_INITIALIZER {.no_odb_ports={80},.n_ports=1,.is_frontend=0,.corrupt_value=-1,.r_err_strat=0,.ms_countdown=DEFAULT_COUNTDOWN,.ODB_serv_addr={0}}
+#define ODB_Config_INITIALIZER {.init_from=ODB_CONFIG_FROM_DEF, \
+                                .no_odb_ports={80},             \
+                                .n_ports=1,                     \
+                                .is_frontend=0,                 \
+                                .corrupt_value=-1,              \
+                                .r_err_strat=0,                 \
+                                .ms_countdown=DEFAULT_COUNTDOWN,\
+                                .ODB_serv_addr={0}}
 
 /****************************************
 *                                       *

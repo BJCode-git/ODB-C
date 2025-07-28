@@ -13,7 +13,7 @@ if [[ "$mode" != "odb" && "$mode" != "vanilla" ]]; then
 fi
 
 if [[ "$tier" != "LOC" && "$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" && "$tier" != "ALL" ]]; then
-  echo "Erreur: Le second argument doit être 'FE', 'IS', 'BE' ou 'ALL'"
+  echo "Erreur: Le second argument doit être 'LOC' 'FE', 'IS', 'BE' ou 'ALL'"
   exit 1
 fi
 
@@ -29,12 +29,14 @@ use_debug=0
 # Paramètres globaux du test
 PROCESS_NAME="nginx"
 TEST_DURATION=100  # durée en secondes
-TEST_PERIOD=0.1 # période en secondes (100 ms)
+TEST_PERIOD=100    # période en ms
 LOCUST_USERS=1000
 LOCUST_SPAWN_RATE=50
 
 # Utilise le script suivant pour configurer et lancer nginx
-./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier"
+if [[ "$tier" != "LOC" ]]; then
+  ./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier"
+fi
 
 for size in "16K" "32K" "64K" "128K" "256K"; do
 
@@ -63,7 +65,8 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
       echo "PID nginx-inter: $(cat /run/nginx-inter.pid)" >> "$NGINX_PIDS_FILE"
     fi
 
-    scripts/monitor-perf.sh "$PROCESS_NAME" "$TEST_PERIOD" "$TEST_DURATION" "$CPU_MEASURE_DIR" "$tier" &
+    scripts/monitor-perf.sh "$PROCESS_NAME" "$TEST_PERIOD" "$TEST_DURATION" "$CPU_MEASURE_DIR" "$tier" & MONITOR_PID=$!
+    echo "[INFO] Surveillance CPU/Mémoire lancée avec PID $MONITOR_PID"
   fi
 
   if [[  "$tier" == "LOC" || "$tier" == "ALL" ]]; then
@@ -81,21 +84,17 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
       --headless \
       --tags "$size" \
       -u "$LOCUST_USERS" -r "$LOCUST_SPAWN_RATE" \
-      -H http://172.16.20.:42000 \
+      -H http://172.16.20.17:42000 \
       --run-time "${TEST_DURATION}s" \
       --csv="$LOCUST_FILES_DIR/results" \
       --loglevel=CRITICAL \
-      --only-summary &
-
-    LOCUST_PID=$!
+      --only-summary & LOCUST_PID=$!
+  
     echo "[INFO] Locust lancé avec PID $LOCUST_PID"
   fi
 
   # Attendre la fin du monitoring nginx
   if [[ "$tier" != "LOC" ]]; then
-
-    MONITOR_PID=$!
-    echo "[INFO] Surveillance CPU/Mémoire lancée avec PID $MONITOR_PID"
 
     wait $MONITOR_PID
     echo "[INFO] Monitoring terminé."
@@ -103,7 +102,7 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
   fi
 
   # Attendre la fin du test de charge
-  if [[ "$tier" == "FE" || "$tier" == "ALL" ]]; then
+  if [[ "$tier" == "LOC" || "$tier" == "ALL" ]]; then
     
     wait $LOCUST_PID
     echo "[INFO] Locust terminé."

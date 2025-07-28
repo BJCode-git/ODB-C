@@ -290,7 +290,7 @@ ODB_ERROR remove_ODB_Remote_Buffer(ODB_RemoteAccessBuffer **RAB, size_t fd);
 void reset_ODB_Remote_Buffer(ODB_RemoteAccessBuffer **RAB);
 
 // Garbage collector -> remove periodically unused entries
-void garbage_collect_ODB_RAB();
+void garbage_collect_ODB_RAB(union sigval sv);
 
 /****************************************
 *                                       *
@@ -298,7 +298,7 @@ void garbage_collect_ODB_RAB();
 *                                       *
 *****************************************/
 
-void start_garbage_collector(ODB_Config *conf);
+void start_garbage_collector(const ODB_Config *conf);
 
 void stop_garbage_collector();
 

@@ -1,0 +1,32 @@
+Count,Message,Traceback,Nodes
+83,timed out,"  File ""/home/jbrelot/.local/lib/python3.9/site-packages/locust/user/task.py"", line 340, in run
+    self.execute_next_task()
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/locust/user/task.py"", line 373, in execute_next_task
+    self.execute_task(self._task_queue.popleft())
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/locust/user/task.py"", line 490, in execute_task
+    task(self.user)
+  File ""/home/jbrelot/NEWODB/scripts/locust/locustfile.py"", line 20, in test_64K
+    self.client.get(""/lorem-64K.html"")
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/locust/contrib/fasthttp.py"", line 301, in get
+    return self.request(""GET"", url, **kwargs)
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/locust/contrib/fasthttp.py"", line 272, in request
+    request_meta[""response_length""] = len(response.content) if response.content else 0
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/geventhttpclient/useragent.py"", line 205, in content
+    self._cached_content = self._content()
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/locust/contrib/fasthttp.py"", line 566, in _content
+    return super()._content()
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/geventhttpclient/useragent.py"", line 220, in _content
+    ret = self._response.read()
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/geventhttpclient/response.py"", line 231, in read
+    data = self._sock.recv(length or self.block_size)
+  File ""/home/jbrelot/.local/lib/python3.9/site-packages/gevent/_socketcommon.py"", line 662, in recv
+    self._wait(self._read_event)
+  File ""src/gevent/_hub_primitives.py"", line 317, in gevent._gevent_c_hub_primitives.wait_on_socket
+  File ""src/gevent/_hub_primitives.py"", line 322, in gevent._gevent_c_hub_primitives.wait_on_socket
+  File ""src/gevent/_hub_primitives.py"", line 313, in gevent._gevent_c_hub_primitives._primitive_wait
+  File ""src/gevent/_hub_primitives.py"", line 314, in gevent._gevent_c_hub_primitives._primitive_wait
+  File ""src/gevent/_hub_primitives.py"", line 55, in gevent._gevent_c_hub_primitives.WaitOperationsGreenlet.wait
+  File ""src/gevent/_waiter.py"", line 154, in gevent._gevent_c_waiter.Waiter.get
+  File ""src/gevent/_greenlet_primitives.py"", line 65, in gevent._gevent_c_greenlet_primitives.SwitchOutGreenletWithLoop.switch
+  File ""src/gevent/_gevent_c_greenlet_primitives.pxd"", line 35, in gevent._gevent_c_greenlet_primitives._greenlet_switch
+",local

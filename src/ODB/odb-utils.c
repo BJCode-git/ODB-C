@@ -1103,7 +1103,10 @@ void reset_ODB_Remote_Buffer(ODB_RemoteAccessBuffer **RAB) {
 *                                       *
 *****************************************/
 
-void garbage_collect_ODB_RAB(){
+void garbage_collect_ODB_RAB(union sigval sv){
+    DEBUG_LOG("garbage_collect_ODB_RAB started ");
+    
+    (void) sv;
 
     if(intern_RAB == NULL ) return;
     ODB_RemoteAccessBuffer *entry = NULL,*tmp = NULL;
@@ -1126,7 +1129,7 @@ void garbage_collect_ODB_RAB(){
 
 static timer_t timer_id = 0;
 
-void start_garbage_collector(ODB_Config *conf){
+void start_garbage_collector(const ODB_Config *conf){
     if(timer_id != 0) return;
 
     DEBUG_LOG("Starting garbage collector ...");
@@ -1137,14 +1140,17 @@ void start_garbage_collector(ODB_Config *conf){
     sev.sigev_notify_function = garbage_collect_ODB_RAB;
     sev.sigev_value.sival_ptr = NULL;
 
+    DEBUG_LOG("Starting garbage collection ...");
     if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
-        perror("timer_create");
+        ERROR_LOG("timer_create");
         return;
     }
+    DEBUG_LOG("timer_created");
 
     // 1St call in x milliseconds
     long countdown_ms = conf == NULL ? DEFAULT_COUNTDOWN : conf->ms_countdown;
-    //(void) conf;
+ 
+    
     its.it_value.tv_sec = countdown_ms / 1000;
     its.it_value.tv_nsec = (countdown_ms % 1000) * 1000000;
     DEBUG_LOG("Garbage collection period : %ld s, %ld ns",its.it_value.tv_sec,its.it_value.tv_nsec);
@@ -1153,11 +1159,8 @@ void start_garbage_collector(ODB_Config *conf){
     its.it_interval.tv_sec = its.it_value.tv_sec;
     its.it_interval.tv_nsec = its.it_value.tv_nsec;
 
-    
-
     if (timer_settime(timer_id, 0, &its, NULL) == -1) {
-        perror("timer_settime");
-        DEBUG_LOG("Error in timer_settime , errno : %d // args",errno);
+        ERROR_LOG("timer_settime");
         timer_delete(timer_id);
         timer_id = 0;
     }

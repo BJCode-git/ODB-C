@@ -484,7 +484,7 @@ ODB_ERROR answer_client(int fd, ODB_Query_Desc *query) {
         return ODB_SOCKET_WRITE_ERROR;
     }
     else if((size_t) sent_bytes < answer[0].iov_len + answer[1].iov_len){
-        ERROR_LOG("%zb bytes sent instead of %zu", sent_bytes, answer[0].iov_len + answer[1].iov_len);
+        ERROR_LOG("%zu bytes sent instead of %zu", sent_bytes, answer[0].iov_len + answer[1].iov_len);
     }
     DEBUG_LOG("Answer back sent !");
     

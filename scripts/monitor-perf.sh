@@ -38,7 +38,7 @@ mkdir -p "$CPU_MEASURE_DIR/logs" "$CPU_MEASURE_DIR/plots"
 
 #wait $wait_for
 
-python3 ./scripts/monitor-usage.py "$CPU_MEASURE_DIR/logs" "$PATTERN" --period $INTERVAL --duration $DURATION --pids $PIDS --pin 0
+sudo python3 ./scripts/monitor-usage.py "$CPU_MEASURE_DIR/logs" "$PATTERN" --period $INTERVAL --duration $DURATION --pids $PIDS --pin 0
 #wait $!
 
 #Générer les graphes CPU
@@ -47,6 +47,6 @@ python3 ./scripts/monitor-usage.py "$CPU_MEASURE_DIR/logs" "$PATTERN" --period $
 #    echo "[INFO] Graphique CPU pour PID $pid généré dans $CPU_MEASURE_DIR/plots/$pid.png"
 #done
 
-python3 scripts/plot-cpu.py "$CPU_MEASURE_DIR/logs/" --output "$CPU_MEASURE_DIR/plots/" --window 5
+sudo python3 scripts/plot-cpu.py "$CPU_MEASURE_DIR/logs/" --output "$CPU_MEASURE_DIR/plots/" --window 5
 
 echo "Mesures terminées, fichiers logs et plots dans $CPU_MEASURE_DIR"
