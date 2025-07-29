@@ -631,6 +631,9 @@ ODB_ERROR create_ODB_Server_if_not_exist(struct sockaddr_in *net_addr, ODB_Confi
                 return ODB_THREAD_CREATE;
             }
 
+            // detach the thread, doesn't care if it fails
+            pthread_detach(tID);
+
             // Wait for cond to be set
             pthread_cond_wait(&args->cond, &ODB_serv_mutex);
             

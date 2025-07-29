@@ -1103,10 +1103,8 @@ void reset_ODB_Remote_Buffer(ODB_RemoteAccessBuffer **RAB) {
 *                                       *
 *****************************************/
 
-void garbage_collect_ODB_RAB(union sigval sv){
+void garbage_collect_ODB_RAB(){
     DEBUG_LOG("garbage_collect_ODB_RAB started ");
-    
-    (void) sv;
 
     if(intern_RAB == NULL ) return;
     ODB_RemoteAccessBuffer *entry = NULL,*tmp = NULL;
@@ -1127,9 +1125,91 @@ void garbage_collect_ODB_RAB(union sigval sv){
 
 }
 
-static timer_t timer_id = 0;
+#include <semaphore.h>
+
+static pthread_mutex_t garbage_collector_mutex = PTHREAD_MUTEX_INITIALIZER;
+static sem_t garbage_collector_sem;
+static uint8_t garbage_collection_active = 0;
+
+void* garbage_collect_thread(void *arg){
+    long countdown_ms = arg == NULL ? DEFAULT_COUNTDOWN : ((const ODB_Config*)arg)->ms_countdown;
+
+    while(1){
+        // Check if the garbage collector is active
+        uint8_t active_flag = 0;
+        // Wait for the start signal
+        sem_wait(&garbage_collector_sem);
+
+        // check if the garbage collector is active
+        pthread_mutex_lock(&garbage_collector_mutex);
+            active_flag = garbage_collection_active;
+        pthread_mutex_unlock(&garbage_collector_mutex);
+        
+        while(active_flag ){
+            garbage_collect_ODB_RAB();
+            usleep(countdown_ms * 1000);
+
+            // keep checking if the garbage collector is active
+            pthread_mutex_lock(&garbage_collector_mutex);
+                active_flag = garbage_collection_active;
+            pthread_mutex_unlock(&garbage_collector_mutex);
+        } 
+
+    }
+
+    pthread_exit(NULL);
+}
 
 void start_garbage_collector(const ODB_Config *conf){
+    static uint8_t garbage_thread_created = 0;
+
+    // check thread initialization
+    if( (garbage_thread_created & 1) == 0){
+        pthread_t garbage_collector_thread;
+        if(pthread_create(&garbage_collector_thread, NULL, garbage_collect_thread,(void*) conf) != 0){
+            ERROR_LOG("pthread_create");
+            return;
+        }
+        // detach the thread, doesn't care if it fails
+        pthread_detach(garbage_collector_thread);
+        garbage_thread_created |= 1;
+    }
+
+    // check semaphore initialization
+    if( (garbage_thread_created & 2) == 0){
+        if(sem_init(&garbage_collector_sem, 0, 0) != 0){
+            ERROR_LOG("sem_init");
+            return;
+        }
+        garbage_thread_created |= 2;
+    }
+
+    // trigger the garbage collector thread
+    pthread_mutex_lock(&garbage_collector_mutex);
+        garbage_collection_active = 1;
+    pthread_mutex_unlock(&garbage_collector_mutex);
+    sem_post(&garbage_collector_sem);
+}
+
+void stop_garbage_collector(){
+    // stop garbage collecting by updating a flag
+    pthread_mutex_lock(&garbage_collector_mutex);
+        // prevent from double stop or stop before start and initialization
+        if(!garbage_collection_active){
+            pthread_mutex_unlock(&garbage_collector_mutex);
+            return;
+        }
+        garbage_collection_active = 0;
+    pthread_mutex_unlock(&garbage_collector_mutex);
+
+    // consume the semaphore to prevent too many posts
+    sem_trywait(&garbage_collector_sem);
+}
+
+
+/*
+static timer_t timer_id = 0;
+void start_garbage_collector_sigev(const ODB_Config *conf){
     if(timer_id != 0) return;
 
     DEBUG_LOG("Starting garbage collector ...");
@@ -1165,14 +1245,14 @@ void start_garbage_collector(const ODB_Config *conf){
         timer_id = 0;
     }
 }
-
-void stop_garbage_collector(){
+void stop_garbage_collector_sigev(){
     if (timer_id != 0) {
         DEBUG_LOG("Stopping garbage collection ...");
         timer_delete(timer_id);
         timer_id = 0;
     }
 }
+*/
 
 /****************************************
 *                                       *
