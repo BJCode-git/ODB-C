@@ -1,5 +1,4 @@
-alias sudo=sudo-g5k
-sudo apt install nginx -y
-sudo pip install locust
-sudo pip install psutil
-sudo pip install psrecord
+sudo-g5k apt install nginx -y
+sudo-g5k pip install locust
+sudo-g5k pip install psutil
+sudo-g5k pip install psrecord

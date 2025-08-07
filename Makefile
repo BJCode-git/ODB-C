@@ -13,12 +13,14 @@ RESULTS_DIR=results
 SERV_DIR=server
 
 #LIBNAMES
+SLIMGUARD_LIB=$(LIB_DIR)/libSlimGuard.so
 HTTP_LIB=$(LIB_DIR)/libhttp.a
 IT_LIB=$(LIB_DIR)/libiterator.a
 ODB_LIB=$(LIB_DIR)/libnewodb.so
 FE_LIB=$(LIB_DIR)/libFE_odb.so
 IS_LIB=$(LIB_DIR)/libIS_odb.so
 BE_LIB=$(LIB_DIR)/libBE_odb.so
+
 
 USE_ODB?=1
 USE_STANDALONE?=1
@@ -99,16 +101,20 @@ $(HTTP_LIB):  $(LIB_DIR)
 	cp external/llhttp/build/libllhttp.a $(LIB_DIR)/libllhttp.a
 	cp external/llhttp/build/libllhttp.so $(LIB_DIR)/libllhttp.so
 
+$(SLIMGUARD_LIB):  $(LIB_DIR)
+	$(MAKE) -C external/SlimGuard/
+	cp external/SlimGuard/libSlimGuard.so $(LIB_DIR)/libSlimGuard.so
+	chmod +rwx $(LIB_DIR)/libSlimGuard.so
 
 ################## Compilation des librairies ODB ##################
 
-$(ODB_LIB): clean-lib $(LIB_DIR) 
+$(ODB_LIB): $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -o $(ODB_LIB)
-$(FE_LIB): clean-lib $(LIB_DIR) 
+$(FE_LIB): $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -DLOG_STATUS=\"FRONT_END\" -o $(FE_LIB)
-$(IS_LIB): clean-lib $(LIB_DIR) 
+$(IS_LIB): $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -DLOG_STATUS=\"INTERMEDIATE_SERVER\" -o $(IS_LIB)
-$(BE_LIB): clean-lib $(LIB_DIR) 
+$(BE_LIB): $(LIB_DIR) 
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -shared -fPIC -ldl -rdynamic $(ODB_SRC)  -DEQU_ALIGN=$(USE_EQU_ALIGN) -DODB=$(USE_ODB) -DDEBUG=$(DEBUG) -DODB_STANDALONE=$(USE_STANDALONE) -DLOG_STATUS=\"BACK_END\" -o $(BE_LIB)
 
 ################## Compilation des Tests ##################
@@ -153,6 +159,16 @@ test-fork: $(BIN_DIR) $(ODB_LIB)
 test-conf:
 	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -o $(BIN_DIR)/test-conf $(TEST_DIR)/test-conf.c
 	chmod +x $(BIN_DIR)/test-conf
+
+################## Benchmarks 		   ##################
+
+mprotect-bench: $(BIN_DIR)
+	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -o $(BIN_DIR)/mprotect-bench $(SRC_DIR)/mprotect-bench/mprotect-benchmark.c
+	chmod +x $(BIN_DIR)/mprotect-bench
+
+run-mprotect-bench: mprotect-bench
+	./$(BIN_DIR)/mprotect-bench
+	
 
 ################## Execution des Tests ##################
 
@@ -314,6 +330,7 @@ clean-results:
 
 clean-lib:
 	rm -rf $(LIB_DIR)/*
+	$(MAKE) -C external/SlimGuard clean
 
 clean-bin:
 	rm -rf $(BIN_DIR)/*

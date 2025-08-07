@@ -1,0 +1,3 @@
+PID nginx-backend: 33407
+PID nginx-frontend: 33334
+PID nginx-inter: 33366

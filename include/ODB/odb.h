@@ -87,7 +87,7 @@
 #endif
 
 #ifndef EQU_ALIGN
-	#define EQU_ALIGN 1
+	#define EQU_ALIGN 0
 #endif
 
 #ifndef DEBUG
@@ -232,12 +232,12 @@ typedef struct iovec ODB_Frame[ODB_FRAME_SIZE];
     } ODB_Header;
 
     #define ODB_Header_INITIALIZER {.magic_number=ODB_INVALID_NUMBER,.type=NONE,.total_size=0,.crc=0}
-    #define INIT_ODB_Header(header,_type,_total_size)    \
+    #define INIT_ODB_Header(header,_type,_total_size)      \
     if((header) != NULL){                                  \
         (header)->magic_number    = ODB_MAGIC_NUMBER;      \
         (header)->type            = _type;                 \
         (header)->total_size      = _total_size;           \
-        compute_ODB_crc(header,NULL);                    \
+        compute_ODB_crc(header,NULL);                      \
     }
 #else
     typedef struct ODB_Header{

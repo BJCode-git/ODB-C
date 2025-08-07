@@ -8,7 +8,7 @@ INTERVAL="$2"
 DURATION="$3"
 CPU_MEASURE_DIR="$4"
 #get pattern file_name
-PATTERN="${4:-$PROCESS_NAME}"
+PATTERN="${5:-$PROCESS_NAME}"
 
 
 if [ -z "$PROCESS_NAME" ] || [ -z "$INTERVAL" ] || [ -z "$DURATION" ] || [ -z "$CPU_MEASURE_DIR" ]; then
@@ -47,6 +47,6 @@ sudo python3 ./scripts/monitor-usage.py "$CPU_MEASURE_DIR/logs" "$PATTERN" --per
 #    echo "[INFO] Graphique CPU pour PID $pid généré dans $CPU_MEASURE_DIR/plots/$pid.png"
 #done
 
-sudo python3 scripts/plot-cpu.py "$CPU_MEASURE_DIR/logs/" --output "$CPU_MEASURE_DIR/plots/" --window 5
+sudo python3 scripts/plot-cpu.py "$CPU_MEASURE_DIR/logs/" "$CPU_MEASURE_DIR/plots/" --window 5
 
 echo "Mesures terminées, fichiers logs et plots dans $CPU_MEASURE_DIR"

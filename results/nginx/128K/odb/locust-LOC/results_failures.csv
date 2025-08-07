@@ -1,4 +1,0 @@
-Method,Name,Error,Occurrences
-GET,/lorem-128K.html,LocustBadStatusCode(code=502),149
-GET,/lorem-128K.html,HTTPConnectionClosed('connection closed.'),31169
-GET,/lorem-128K.html,HTTPParseError('Incomplete response.'),28
