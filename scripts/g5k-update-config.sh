@@ -12,7 +12,9 @@ files=(
 )
 
 # Charger les variables depuis ips.conf
-export $(grep -v '^#' config/g5k/ips.conf | xargs)
+set -a
+source config/g5k/ips.conf
+set +a
 
 # Remplacement dans chaque fichier
 for f in "${files[@]}"; do

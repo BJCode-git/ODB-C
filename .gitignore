@@ -1,7 +1,5 @@
 scripts/__pycache__
-results/answer.save
-results/inter.save
-results/original_data.save
+results/*
 rapport
 debug/*
 bin/*
