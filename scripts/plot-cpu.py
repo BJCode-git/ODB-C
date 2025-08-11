@@ -34,8 +34,8 @@ def plot_with_stats(time, series_dict, window, ax, title, ylabel):
         stats = describe(data)
 
         ax.plot(smoothed_time, smoothed, label=label)
-        stat_lines.append((f"{label} Moyenne", stats['mean'], '--'))
-        stat_lines.append((f"{label} Médiane", stats['median'], '--'))
+        stat_lines.append((f"{label} Mean", stats['mean'], '--'))
+        stat_lines.append((f"{label} Mediane", stats['median'], '--'))
         stat_lines.append((f"{label} Q1", stats['Q1'], ':'))
         stat_lines.append((f"{label} Q3", stats['Q3'], ':'))
 
@@ -57,8 +57,8 @@ def compute_rate(series, time):
 
 
 def enrich_pid_cpu_with_core_data(df):
-    cpu_pid_cols = [c for c in df.columns if c.startswith("CPU_") and not c.endswith("_io") and not c.startswith("CPU_percent_core_pin") and c != "Total_CPU_percent"]
-    core_pin_cols = [c for c in df.columns if c.startswith("CPU_percent_core_pin")]
+    cpu_pid_cols = [c for c in df.columns if c.startswith("CPU_") and not c.endswith("_io") and not c.startswith("CPU_%_by_process") and c != "Total_CPU_percent"]
+    core_pin_cols = [c for c in df.columns if c.startswith("CPU_%_by_process")]
 
     cores = set()
     for col in core_pin_cols:
@@ -102,45 +102,44 @@ def plot_from_csv(logfile, graph_type, window, output_file):
         df['time'] = np.arange(len(df))
 
     time = df['time'].values
-
     if graph_type == 'cpu_sys':
         # Nouveau comportement : 2 sous-graphes, un pour CPU, un pour mémoire
         series_list = [
-            ({"CPU total (%)": df["Total_CPU_percent"].values}, "Utilisation CPU Système", "Pourcentage (%)"),
-            ({"Mémoire utilisée (%)": df["Total_Memory_percent"].values}, "Utilisation Mémoire Système", "Pourcentage (%)"),
+            ({"Total CPU (%)": df["Total_CPU_percent"].values}, "System CPU Usage", "Percentage (%)"),
+            ({"Memory used (%)": (df["Total_Memory_usage"] / (1024 * 1024)).values}, "System Memory Usage", "Memory (Mo)")
         ]
-        plot_multiple_subplots(time, series_list, window, output_file, "Utilisation CPU et Mémoire Système")
+        plot_multiple_subplots(time, series_list, window, output_file, "System usage")
 
     elif graph_type == 'cpu_pids':
         # Gestion des PID avec sous-graphes pour :
-        # CPU_%_global, CPU_%_on_core, CPU_percent_core_pin, Memory_%
+        # CPU_%_global, CPU_%_on_core, CPU_%_by_process, Process_memory_usage
         # On suppose que le fichier contient ces colonnes (ou on gère si absentes)
 
         cols_global = [c for c in df.columns if "CPU_%_global" in c]
         cols_on_core = [c for c in df.columns if "CPU_%_on_core" in c]
-        cols_core_pin = [c for c in df.columns if "CPU_percent_core_pin" in c]
-        cols_mem = [c for c in df.columns if "Memory_%" in c]
+        cols_core_pin = [c for c in df.columns if "CPU_%_by_process" in c]
+        cols_mem = [c for c in df.columns if "Process_memory_usage" in c]
 
         series_list = []
 
         if cols_global:
             series_global = {c: df[c].values for c in cols_global}
-            series_list.append((series_global, "CPU % Global par PID", "CPU (%)"))
+            series_list.append((series_global, "CPU % Global use", "CPU (%)"))
 
         if cols_on_core:
             series_on_core = {c: df[c].values for c in cols_on_core}
-            series_list.append((series_on_core, "CPU % on Core par PID", "CPU (%)"))
+            series_list.append((series_on_core, "CPU % use on target core", "CPU (%)"))
 
         if cols_core_pin:
             series_core_pin = {c: df[c].values for c in cols_core_pin}
-            series_list.append((series_core_pin, "CPU Percent Core Pin par PID", "CPU (%)"))
+            series_list.append((series_core_pin, "CPU % used by process", "CPU (%)"))
 
         if cols_mem:
-            series_mem = {c: df[c].values for c in cols_mem}
-            series_list.append((series_mem, "Mémoire % par PID", "Mémoire (%)"))
+            series_mem = {c: (df[c] / (1024 * 1024)).values for c in cols_mem}
+            series_list.append((series_mem, "Memory used by process", "Memory (Mo)"))
 
         if not series_list:
-            raise ValueError("Aucune colonne CPU_%_global, CPU_%_on_core, CPU_percent_core_pin, ni Memory_% trouvée dans le fichier.")
+            raise ValueError("Aucune colonne CPU_%_global, CPU_%_on_core, CPU_%_by_process, ni Process_memory_usage trouvée dans le fichier.")
 
         plot_multiple_subplots(time, series_list, window, output_file, "Utilisation CPU et Mémoire par PID")
 
@@ -153,7 +152,7 @@ def plot_from_csv(logfile, graph_type, window, output_file):
             "Débit envoi (octets/s)": rate_sent,
             "Débit réception (octets/s)": rate_recv
         }
-        plot_with_stats(time, series, window, plt.gca(), "Débit Réseau Système", "Octets/s")
+        plot_with_stats(time, series, window, plt.gca(), "System network flow", "Bytes/s")
         plt.gcf().savefig(output_file)
         plt.close()
         print(f"[OK] Graphique généré : {output_file}")
@@ -168,7 +167,7 @@ def plot_from_csv(logfile, graph_type, window, output_file):
             series[f"{col} (lecture)"] = compute_rate(df[col].values, time)
         for col in write_cols:
             series[f"{col} (écriture)"] = compute_rate(df[col].values, time)
-        plot_with_stats(time, series, window, plt.gca(), "I/O disque par PID (octets/s)", "Octets/s")
+        plot_with_stats(time, series, window, plt.gca(), "I/O flow by process", "Bytes/s")
         plt.gcf().savefig(output_file)
         plt.close()
         print(f"[OK] Graphique généré : {output_file}")

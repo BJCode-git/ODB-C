@@ -2,6 +2,7 @@ import argparse
 import psutil
 from psutil import Process, cpu_count, cpu_times, cpu_percent, virtual_memory, net_io_counters
 from sys import exit
+from os import makedirs
 from threading import Thread
 from queue import Queue
 from time import sleep, perf_counter
@@ -10,36 +11,6 @@ import csv
 Worker_queue = Queue()
 stop_logging = False  # Flag global pour arrêter proprement le thread de log
 
-def delta_cpu_time(t1, t0):
-    return (
-        (t1.user - t0.user) +
-        (t1.system - t0.system) +
-        (t1.nice - t0.nice if t1.nice is not None else 0) +
-        (t1.irq - t0.irq if t1.irq is not None else 0) +
-        (t1.softirq - t0.softirq if t1.softirq is not None else 0) +
-        (t1.steal - t0.steal if hasattr(t1, "steal") else 0)
-    )
-
-def delta_cpu_busy_time(t1, t0):
-    idle = (t1.idle - t0.idle)
-    iowait = (t1.iowait - t0.iowait) if hasattr(t1, "iowait") else 0
-    total = sum((getattr(t1, f) - getattr(t0, f)) for f in t1._fields if hasattr(t0, f))
-    return total - idle - iowait
-
-def compute_rel_pid_percent(pid_delta_time, sys_delta_time, ncpu):
-    if sys_delta_time == 0:
-        return 0.0
-    return 100.0 * pid_delta_time / (sys_delta_time * ncpu)
-
-def compute_single_core_percent(pid_delta_time, core_delta_time):
-    if core_delta_time == 0:
-        return 0.0
-    return 100.0 * pid_delta_time / core_delta_time
-
-def compute_core_total_percent(core_busy_time, interval):
-    if interval == 0:
-        return 0.0
-    return 100.0 * core_busy_time / interval
 
 def set_cpu_affinity_recursively(pid, core):
     try:
@@ -51,9 +22,13 @@ def set_cpu_affinity_recursively(pid, core):
         pass
 
 def log_values(logdir, filename_pattern, pids):
+    
+    #make dir if not exist
+    makedirs(logdir, exist_ok=True)
+    
     f_sys = open(f"{logdir}/{filename_pattern}_sys.csv", "w", newline="")
     writer_sys_cpu = csv.writer(f_sys)
-    writer_sys_cpu.writerow(["Total_CPU_percent", "Total_Memory_percent"])
+    writer_sys_cpu.writerow(["Total_CPU_percent", "Total_Memory_usage"])
 
     f_sys_io = open(f"{logdir}/{filename_pattern}_sys_io.csv", "w", newline="")
     writer_sys_io = csv.writer(f_sys_io)
@@ -66,7 +41,7 @@ def log_values(logdir, filename_pattern, pids):
     for pid in pids:
         f_cpu = open(f"{logdir}/{filename_pattern}_{pid}.csv", "w", newline="")
         writer = csv.writer(f_cpu)
-        writer.writerow(["CPU_%_global", "CPU_%_on_core", "CPU_percent_core_pin", "Core", "Memory_%"])
+        writer.writerow(["CPU_%_global", "CPU_%_on_core", "CPU_%_by_process", "Core", "Process_memory_usage"])
         f_pid_files[pid] = f_cpu
         writer_pids_cpu[pid] = writer
 
@@ -102,74 +77,38 @@ def monitor(logdir, filename_pattern, period=100, duration=100, pids=[], pin=-1)
     log_thread.start()
 
     processes = [{pid: Process(pid)} for pid in pids]
+    core = None
+    ncpu = cpu_count(logical=True)
     if pin != -1:
+        core = pin
         for pid in pids:
             set_cpu_affinity_recursively(pid, pin)
 
-    last_sys_time = psutil.cpu_times()
-    last_cores_times = psutil.cpu_times(percpu=True)
-    last_pid_times = {pid: processes[i][pid].cpu_times() for i, pid in enumerate(pids)}
-
-    ncpu = psutil.cpu_count(logical=True)
     total_measures = 0
-
     while time_elapsed < duration:
         total_measures += 1
         start = perf_counter()
         sleep(period / 1000)
 
-        if pin != -1:
-            for pid in pids:
-                set_cpu_affinity_recursively(pid, pin)
-
-        sys_cpu_times = psutil.cpu_times()
-        sys_delta_time = delta_cpu_time(sys_cpu_times, last_sys_time)
-        last_sys_time = sys_cpu_times
-
-        cpu_percent_global = psutil.cpu_percent(interval=None)
+        cpu_percent_global = cpu_percent(interval=None)
         mem = virtual_memory()
+        tot_mem_usage = mem.total - mem.available
         net = net_io_counters()
 
-        current_cores_times = psutil.cpu_times(percpu=True)
-        core_busy_time_total = 0.0
-        for c_new, c_old in zip(current_cores_times, last_cores_times):
-            core_busy_time_total += delta_cpu_busy_time(c_new, c_old)
-
-        if pin != -1:
-            core_busy_time_pin = delta_cpu_busy_time(current_cores_times[pin], last_cores_times[pin])
-            cpu_percent_core_pin = 100.0 * core_busy_time_pin / core_busy_time_total if core_busy_time_total > 0 else 0.0
-        else:
-            cpu_percent_core_pin = None
-            core_busy_time_pin = None
-
-        last_cores_times = current_cores_times
-
-        core = pin if pin != -1 else None
-
-        l_sys = [cpu_percent_global, mem.percent]
+        cpu_core_percent = cpu_percent(interval=None, percpu=True)[pin] if pin != -1 else None
+        
+        l_sys = [cpu_percent_global, tot_mem_usage]
         l_sys_io = [net.bytes_sent, net.bytes_recv]
 
         l_pids = dict()
         for i, pid in enumerate(pids):
             p = processes[i][pid]
             try:
-                cur_pid_time = p.cpu_times()
-                pid_delta = (
-                    (cur_pid_time.user - last_pid_times[pid].user) +
-                    (cur_pid_time.system - last_pid_times[pid].system)
-                )
-                last_pid_times[pid] = cur_pid_time
-
-                cpu_percent_total = compute_rel_pid_percent(pid_delta, sys_delta_time, ncpu)
-
-                if pin != -1 and core_busy_time_pin and core_busy_time_pin > 0:
-                    cpu_percent_on_core = 100.0 * pid_delta / core_busy_time_pin
-                else:
-                    cpu_percent_on_core = None
-
-                mem_percent = p.memory_percent()
+                cpu_pid_percent = p.cpu_percent(interval=None) / ncpu
+                pid_mem_usage = p.memory_full_info().uss
+                
                 io = p.io_counters()
-                l_pids[pid] = [cpu_percent_total, cpu_percent_on_core, cpu_percent_core_pin, core, mem_percent, [io.write_bytes,io.read_bytes]]
+                l_pids[pid] = [cpu_percent_global,cpu_core_percent, cpu_pid_percent, core,pid_mem_usage, [io.write_bytes,io.read_bytes]]
 
             except psutil.NoSuchProcess:
                 continue

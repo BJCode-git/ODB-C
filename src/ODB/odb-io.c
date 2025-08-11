@@ -815,7 +815,12 @@ static ODB_ERROR send_virtual(int sockfd,ConnectionInfo *info,int flags, size_t 
     *bytes_written = (size_t) ret;
     deserialize_odb_desc_inplace(&info->desc);
 
-    const size_t should_have_written = info->desc.d_desc.head_size + info->desc.d_desc.tail_size + ODB_HEADER_SIZE + ODB_DESC_SIZE;
+    #if SEND_UNALIGNED_DATA
+        const size_t should_have_written = info->desc.d_desc.head_size + info->desc.d_desc.tail_size + ODB_HEADER_SIZE + ODB_DESC_SIZE;
+    #else
+        const size_t should_have_written = ODB_HEADER_SIZE + ODB_DESC_SIZE;
+    #endif
+    
     if(should_have_written > info->bytes_read_write + *bytes_written ) {
         ERROR_LOG("Wrote %zu / %zu real bytes",*bytes_written,should_have_written);
         if(info->bytes_read_write + *bytes_written < ODB_HEADER_SIZE + ODB_DESC_SIZE){
@@ -1548,7 +1553,6 @@ static ODB_ERROR recv_virtual_payload(int socket, size_t *bytes_read, int flags,
         DEBUG_LOG("ODB : Receiving unaligned data incomplete, waiting for more data... \n");
         return ODB_INCOMPLETE;
     }
-    
 
     if( unaligned_size <= info->bytes_read_write ){
 

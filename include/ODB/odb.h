@@ -83,7 +83,7 @@
 #endif
 
 #ifndef SEND_UNALIGNED_DATA
-    #define SEND_UNALIGNED_DATA 1
+    #define SEND_UNALIGNED_DATA 0
 #endif
 
 #ifndef EQU_ALIGN

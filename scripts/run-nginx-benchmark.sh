@@ -6,20 +6,30 @@
 mode="${1:-odb}"
 tier="${2:-ALL}"
 alignement="${3:-unaligned}"
+unaligned_sending="${4:-unaligned-sending}"
+
+print_usage() {
+  echo -e "Usage: $0 \n<mode : odb | vanilla> \n<tier : LOC | FE | IS | BE | ALL> \n<alignement : aligned | unaligned> \n<unaligned_sending : no-unaligned-sending | unaligned-sending>"
+}
 
 # Vérification des arguments
 if [[ "$mode" != "odb" && "$mode" != "vanilla" ]]; then
-  echo "Erreur: Le premier argument doit être 'odb' ou 'vanilla'"
+  print_usage
   exit 1
 fi
 
 if [[ "$tier" != "LOC" && "$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" && "$tier" != "ALL" ]]; then
-  echo "Erreur: Le second argument doit être 'LOC' 'FE', 'IS', 'BE' ou 'ALL'"
+  print_usage
   exit 1
 fi
 
 if [[ "$alignement" != "aligned" && "$alignement" != "unaligned" ]]; then
-  echo "Erreur: Le troisième argument doit être 'aligned' ou 'unaligned'"
+  print_usage
+  exit 1
+fi
+
+if [[ "$unaligned_sending" != "no-unaligned-sending" && "$unaligned_sending" != "unaligned-sending" ]]; then
+  print_usage
   exit 1
 fi
 
@@ -37,10 +47,15 @@ if [ "$alignement" == "aligned" ]; then
   use_alignement=1
 fi
 
+use_unaligned_sending=1
+if [ "$unaligned_sending" == "no-unaligned-sending" ]; then
+  use_unaligned_sending=0
+fi
+
 # Paramètres globaux du test
 PROCESS_NAME="nginx"
 # Répertoires et fichiers
-RESULTS_DIR="results/$PROCESS_NAME/$alignement"
+RESULTS_DIR="results/$PROCESS_NAME/$alignement/$unaligned_sending"
 TEST_DURATION=100  # durée en secondes
 TEST_PERIOD=100    # période en ms
 LOCUST_USERS=1000
@@ -49,7 +64,7 @@ LOCUST_SPAWN_RATE=50
 
 # Utilise le script suivant pour configurer et lancer nginx
 if [[ "$tier" != "LOC" ]]; then
-  ./scripts/launch-nginx.sh "$use_odb" "$use_debug" "$tier" "$use_alignement"
+  ./scripts/launch-nginx.sh "$use_odb" "$use_debug" "$tier" "$use_alignement" "$use_unaligned_sending"
 fi
 
 for size in "16K" "32K" "64K" "128K" "256K"; do

@@ -2,28 +2,39 @@
 
 set -e
 
+print_usage() {
+  echo "Usage: $0 <use_odb : 0 | 1 > <use_debugging : 0 | 1 > <tier : FE | IS | BE | ALL> <use_alignement : 0 | 1 > <use_send_unaligned : 0 | 1 >"
+}
+
 # ==== Paramètres ====
 use_odb="${1:-0}"
 use_debugging="${2:-0}"
 tier="${3:-ALL}"
 use_alignement="${4:0}"
+use_send_unaligned="${5:-1}"
+
 
 # ==== Validation des paramètres ====
 if ! [[ "$use_odb" =~ ^[0-9]+$ ]]; then
-    echo "Erreur: use_odb doit être un entier"
+    print_usage
     exit 1
 fi
 if ! [[ "$use_debugging" =~ ^[0-9]+$ ]]; then
-    echo "Erreur: use_debugging doit être un entier"
+    print_usage
     exit 1
 fi
 if [[ "$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" && "$tier" != "ALL" ]]; then
-    echo "Erreur: tier doit être 'FE', 'IS', 'BE' ou 'ALL'"
+    print_usage
     exit 1
 fi
 
 if [[ "$use_alignement" != "0" && "$use_alignement" != "1" ]]; then
-    echo "Erreur: use_alignement doit être 0 ou 1"
+    print_usage
+    exit 1
+fi
+
+if [[ "$use_send_unaligned" != "0" && "$use_send_unaligned" != "1" ]]; then
+    print_usage
     exit 1
 fi
 
@@ -77,7 +88,7 @@ build_lib() {
 
   local tier_name=$1
   echo "[INFO] Compilation de lib/lib${tier_name}_odb.so"
-  make -j$(nproc) USE_STANDALONE=0 USE_ODB="$use_odb" DEBUG="$use_debugging" "lib/lib${tier_name}_odb.so" 1> /dev/null || {
+  make -j$(nproc) USE_STANDALONE=0 USE_ODB="$use_odb" DEBUG="$use_debugging" USE_UNALIGNED_SENDING="$use_send_unaligned" "lib/lib${tier_name}_odb.so" 1> /dev/null || {
     echo "❌ Échec compilation lib${tier_name}_odb.so"
     exit 1
   }
