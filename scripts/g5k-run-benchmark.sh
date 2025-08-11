@@ -64,7 +64,7 @@ LOCUST_SPAWN_RATE=50
 
 # Utilise le script suivant pour configurer et lancer nginx
 if [[ "$tier" != "LOC" ]]; then
-  ./scripts/launch-nginx.sh "$use_odb" "$use_debug" "$tier" "$use_alignement" "$use_unaligned_sending"
+  ./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier" "$use_alignement" "$use_unaligned_sending"
 fi
 
 for size in "16K" "32K" "64K" "128K" "256K"; do
