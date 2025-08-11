@@ -112,7 +112,7 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
       --headless \
       --tags "$size" \
       -u "$LOCUST_USERS" -r "$LOCUST_SPAWN_RATE" \
-      -H http://${IP_FE}:42000 \
+      -H http://IP_FE:42000 \
       --run-time "${TEST_DURATION}s" \
       --csv="$LOCUST_FILES_DIR/results" \
       --loglevel=CRITICAL \

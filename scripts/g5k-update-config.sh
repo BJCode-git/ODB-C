@@ -8,7 +8,6 @@ files=(
     "config/g5k/nginx-frontend.conf"
     "config/g5k/nginx-inter.conf"
     "config/g5k/nginx-backend.conf"
-    "scripts/g5k-run-benchmark.sh"
 )
 
 # Charger les variables depuis ips.conf
@@ -22,5 +21,8 @@ for f in "${files[@]}"; do
     envsubst < "$f" > "$tmpfile"
     mv "$tmpfile" "$f"
 done
+
+sed -i "s|http://IP_FE:|http://${IP_FE}:|g" scripts/g5k-run-benchmark.sh
+
 
 echo "Configuration mise à jour."
