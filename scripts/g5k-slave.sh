@@ -35,22 +35,22 @@ tests() {
 	
 	echo "Starting $cmd tests..."
 	
-	wait_for_go
+	#wait_for_go
 	echo "Start test with aligned buffer, no unaligned sending"
 	./scripts/g5k-run-benchmark.sh $cmd $tier aligned unaligned-sending
 	send_done
 
-	wait_for_go
+	#wait_for_go
 	echo "Start test with aligned buffer, unaligned sending"
 	./scripts/g5k-run-benchmark.sh $cmd $tier aligned no-unaligned-sending
 	send_done
 
-	wait_for_go
+	#wait_for_go
 	echo "Start test with unaligned buffer, no unaligned sending"	
 	./scripts/g5k-run-benchmark.sh $cmd $tier unaligned unaligned-sending
 	send_done
 
-	wait_for_go
+	#wait_for_go
 	echo "Start test with unaligned buffer, unaligned sending"
 	./scripts/g5k-run-benchmark.sh $cmd $tier unaligned no-unaligned-sending
 	send_done
