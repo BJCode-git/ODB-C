@@ -18,9 +18,9 @@ wait_for_slaves() {
 }
 
 start_slaves() {
-	echo "GO" | socat - $IP_BE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
-	echo "GO" | socat - $IP_IS:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
-	echo "GO" | socat - $IP_FE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
+	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
+	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
+	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
 }
 
 for i in $(seq $N_TESTS); do

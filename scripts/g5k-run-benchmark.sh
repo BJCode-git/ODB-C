@@ -16,7 +16,7 @@ wait_for_go() {
 }
 
 ready() {
-  echo "READY" | socat - $IP_MASTER:$PORT_MASTER,retry=10,interval=1,crnl,shut-down
+  echo "READY" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,crnl,shut-down
 }
 
 # ==== Lecture des arguments ====
