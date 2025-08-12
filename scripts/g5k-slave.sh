@@ -3,9 +3,9 @@
 set -e
 source config/g5k/ips.conf
 
-$tier="${1:-NONE}"
+tier="${1:-NONE}"
 
-if [["$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" ]]; then
+if[[ "$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" ]]; then
   echo "Usage: $0 FE|IS|BE"
   exit 1
 fi
@@ -33,7 +33,7 @@ tests() {
 		cmd="vanilla"
 	fi
 	
-	"Starting $cmd tests..."
+	echo "Starting $cmd tests..."
 	
 	wait_for_go
 	echo "Start test with aligned buffer, no unaligned sending"

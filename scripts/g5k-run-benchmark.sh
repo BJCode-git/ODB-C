@@ -5,7 +5,6 @@
 # ==== Gestion de la synchro ====
 source config/g5k/ips.conf
 
-
 wait_for_go() {
 	MSG=$(socat - TCP-LISTEN:$PORT_SLAVE,reuseaddr,shut-down)
 	if [ "$MSG" == "GO" ]; then
