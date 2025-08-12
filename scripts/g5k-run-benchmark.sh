@@ -21,13 +21,13 @@ wait_for_go() {
 }
 
 ready() {
-  echo "READY" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,shut-down
+  echo "READY" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=3,shut-down
 }
 
 start_slaves() {
-	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=1,shut-down
-	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=1,shut-down
-	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=1,shut-down
+	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=3,shut-down
+	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=3,shut-down
+	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=3,shut-down
 }
 
 # ==== Lecture des arguments ====

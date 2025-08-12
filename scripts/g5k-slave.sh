@@ -22,7 +22,7 @@ wait_for_go() {
 }
 
 send_done() {
-	echo "DONE" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,shut-down
+	echo "DONE" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=3,shut-down
 }
 
 tests() {

@@ -16,9 +16,9 @@ wait_for_slaves() {
 }
 
 start_slaves() {
-	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=1,shut-down
-	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=1,shut-down
-	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=1,shut-down
+	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=3,shut-down
+	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=3,shut-down
+	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=3,shut-down
 }
 
 ready_phase() {
