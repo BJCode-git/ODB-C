@@ -1,0 +1,3 @@
+[submodule "external/SlimGuard"]
+	path = external/SlimGuard
+	url = https://github.com/ssrg-vt/SlimGuard.git
