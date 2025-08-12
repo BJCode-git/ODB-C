@@ -5,7 +5,7 @@ source config/g5k/ips.conf
 
 tier="${1:-NONE}"
 
-if[[ "$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" ]]; then
+if [[ "$tier" != "FE" && "$tier" != "IS" && "$tier" != "BE" ]]; then
   echo "Usage: $0 FE|IS|BE"
   exit 1
 fi
