@@ -2,6 +2,24 @@
 
 #set -e
 
+# ==== Gestion de la synchro ====
+source config/g5k/ips.conf
+
+
+wait_for_go() {
+	MSG=$(nc -l -p $PORT_SLAVE)
+	if [ "$MSG" == "GO" ]; then
+		return
+	else
+		echo "Erreur => Message recu : $MSG"
+		exit 1
+	fi
+}
+
+ready() {
+  echo "ready" | nc -N $IP_MASTER $PORT_MASTER
+}
+
 # ==== Lecture des arguments ====
 mode="${1:-odb}"
 tier="${2:-ALL}"
@@ -93,7 +111,9 @@ for size in "16K" "32K" "64K" "128K" "256K"; do
       echo "PID nginx-inter: $(cat /run/nginx-inter.pid)" >> "$NGINX_PIDS_FILE"
     fi
 
-    scripts/monitor-perf.sh "$PROCESS_NAME" "$TEST_PERIOD" "$TEST_DURATION" "$CPU_MEASURE_DIR" "$tier" & MONITOR_PID=$!
+    ready
+    wait_for_go
+    scripts/g5k-monitor-perf.sh "$PROCESS_NAME" "$TEST_PERIOD" "$TEST_DURATION" "$CPU_MEASURE_DIR" "$tier" & MONITOR_PID=$!
     echo "[INFO] Surveillance CPU/Mémoire lancée avec PID $MONITOR_PID"
   fi
 

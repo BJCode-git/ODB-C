@@ -23,6 +23,7 @@ for f in "${files[@]}"; do
 done
 
 sed -i "s|http://IP_FE:|http://${IP_FE}:|g" scripts/g5k-run-benchmark.sh
+sed -i "s|sudo|sudo-g5k}:|g" scripts/monitor-perf.sh
 
 
 echo "Configuration mise à jour."
