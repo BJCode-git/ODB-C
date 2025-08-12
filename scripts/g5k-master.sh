@@ -3,14 +3,14 @@
 set -e
 source config/g5k/ips.conf
 
-NUM_CLIENTS=4
+NUM_CLIENTS=3
 N_TESTS=8
 COUNT=0
 
 wait_for_slaves() {
 	local COUNT=0
 	while [ $COUNT -lt $NUM_CLIENTS ]; do
-		nc -l -p $PORT_MASTER > /dev/null &
+		socat - TCP-LISTEN:$PORT_MASTER,reuseaddr,shut-down > /dev/null &
 		wait $!
 		COUNT=$((COUNT+1))
 		echo "[MASTER] Serveur $COUNT, ready."
@@ -18,9 +18,9 @@ wait_for_slaves() {
 }
 
 start_slaves() {
-	echo "GO" | nc -N $IP_BE $PORT_SLAVE
-	echo "GO" | nc -N $IP_IS $PORT_SLAVE
-	echo "GO" | nc -N $IP_FE $PORT_SLAVE
+	echo "GO" | socat - $IP_BE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
+	echo "GO" | socat - $IP_IS:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
+	echo "GO" | socat - $IP_FE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
 }
 
 for i in $(seq $N_TESTS); do

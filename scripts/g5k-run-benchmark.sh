@@ -7,7 +7,7 @@ source config/g5k/ips.conf
 
 
 wait_for_go() {
-	MSG=$(nc -l -p $PORT_SLAVE)
+	MSG=$(socat - TCP-LISTEN:$PORT_SLAVE,reuseaddr,shut-down)
 	if [ "$MSG" == "GO" ]; then
 		return
 	else
@@ -17,7 +17,7 @@ wait_for_go() {
 }
 
 ready() {
-  echo "ready" | nc -N $IP_MASTER $PORT_MASTER
+  echo "READY" | socat - $IP_MASTER:$PORT_MASTER,retry=10,interval=1,crnl,shut-down
 }
 
 # ==== Lecture des arguments ====

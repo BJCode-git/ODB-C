@@ -12,7 +12,7 @@ fi
 
 
 wait_for_go() {
-	MSG=$(nc -l -p $PORT_SLAVE)
+	MSG=$(socat - TCP-LISTEN:$PORT_SLAVE,reuseaddr,shut-down)
 	if [ "$MSG" == "GO" ]; then
 		return
 	else
@@ -22,7 +22,7 @@ wait_for_go() {
 }
 
 send_done() {
-	echo "done" | nc -N $IP_MASTER $PORT_MASTER
+	echo "DONE" | socat - $IP_MASTER:$PORT_MASTER,retry=10,interval=1,crnl,shut-down
 }
 
 tests() {
