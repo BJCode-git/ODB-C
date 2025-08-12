@@ -97,7 +97,15 @@ tests() {
 	echo "[MASTER] Test $cmd terminé"
 }
 
+make clean-lib && make clean-bin
+
 tests 0
 tests 1
 
 echo "Tous les tests de charge sont terminés."
+
+echo "Test de mprotect"
+./scripts/test-mprotect.sh
+echo "Test de mprotect terminé"
+
+echo "Tous les tests sont terminés."
