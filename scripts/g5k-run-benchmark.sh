@@ -3,6 +3,11 @@
 #set -e
 
 # ==== Gestion de la synchro ====
+if [[ ! -f config/g5k/ips.conf ]]; then
+    echo "Fichier config/g5k/ips.conf introuvable"
+    exit 1
+fi
+
 source config/g5k/ips.conf
 
 wait_for_go() {
@@ -11,12 +16,18 @@ wait_for_go() {
 		return
 	else
 		echo "Erreur => Message recu : $MSG"
-		exit 1
+		#exit 1
 	fi
 }
 
 ready() {
-  echo "READY" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,crnl,shut-down
+  echo "READY" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,shut-down
+}
+
+start_slaves() {
+	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=1,shut-down
+	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=1,shut-down
+	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=1,shut-down
 }
 
 # ==== Lecture des arguments ====
@@ -24,6 +35,7 @@ mode="${1:-odb}"
 tier="${2:-ALL}"
 alignement="${3:-unaligned}"
 unaligned_sending="${4:-unaligned-sending}"
+size="${5:-none}"
 
 print_usage() {
   echo -e "Usage: $0 \n<mode : odb | vanilla> \n<tier : LOC | FE | IS | BE | ALL> \n<alignement : aligned | unaligned> \n<unaligned_sending : no-unaligned-sending | unaligned-sending>"
@@ -50,6 +62,21 @@ if [[ "$unaligned_sending" != "no-unaligned-sending" && "$unaligned_sending" != 
   exit 1
 fi
 
+# Déterminer la séquence des tailles de payload à tester
+# si pas définie, on teste toutes les tailles
+range=("16K" "32K" "64K" "128K" "256K")
+if [ "$size" != "none" ]; then
+  #check if size is valid
+  if [[ ! " ${range[*]} " =~ (^|[[:space:]])${size}($|[[:space:]]) ]]; then
+    echo "Invalid size: $size"
+    exit 1
+  fi
+  range=("$size")
+fi
+
+
+# Paramètres glob
+
 # ==== Déterminer les paramètres pour launch-nginx-tiers.sh ====
 use_debug=0
 
@@ -69,6 +96,7 @@ if [ "$unaligned_sending" == "no-unaligned-sending" ]; then
   use_unaligned_sending=0
 fi
 
+
 # Paramètres globaux du test
 PROCESS_NAME="nginx"
 # Répertoires et fichiers
@@ -84,7 +112,7 @@ if [[ "$tier" != "LOC" ]]; then
   ./scripts/g5k-launch-nginx.sh "$use_odb" "$use_debug" "$tier" "$use_alignement" "$use_unaligned_sending"
 fi
 
-for size in "16K" "32K" "64K" "128K" "256K"; do
+for size in "${range[@]}"; do
 
   echo "[INFO] Démarrage du test de charge Nginx pour la taille $size avec le mode $mode et le tier $tier"
   

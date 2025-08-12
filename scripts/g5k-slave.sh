@@ -17,18 +17,19 @@ wait_for_go() {
 		return
 	else
 		echo "Erreur => Message recu : $MSG"
-		exit 1
+		#exit 1
 	fi
 }
 
 send_done() {
-	echo "DONE" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,crnl,shut-down
+	echo "DONE" | socat - TCP:$IP_MASTER:$PORT_MASTER,retry=10,interval=1,shut-down
 }
 
 tests() {
 
+	local range=("16K" "32K" "64K" "128K" "256K")
 	local use_odb=$1
-	cmd="odb"
+	local cmd="odb"
 	if [[ "$use_odb" -eq 0 ]]; then
 		cmd="vanilla"
 	fi
@@ -36,24 +37,32 @@ tests() {
 	echo "Starting $cmd tests..."
 	
 	#wait_for_go
-	echo "Start test with aligned buffer, no unaligned sending"
-	./scripts/g5k-run-benchmark.sh $cmd $tier aligned unaligned-sending
-	send_done
+	for size in "${range[@]}"; do
+		echo "Start test with aligned buffer, no unaligned sending"
+		./scripts/g5k-run-benchmark.sh $cmd $tier aligned unaligned-sending $size
+		send_done
+	done;
 
 	#wait_for_go
-	echo "Start test with aligned buffer, unaligned sending"
-	./scripts/g5k-run-benchmark.sh $cmd $tier aligned no-unaligned-sending
-	send_done
+	for size in "${range[@]}"; do
+		echo "Start test with aligned buffer, unaligned sending"
+		./scripts/g5k-run-benchmark.sh $cmd $tier aligned no-unaligned-sending $size
+		send_done
+	done;
 
 	#wait_for_go
-	echo "Start test with unaligned buffer, no unaligned sending"	
-	./scripts/g5k-run-benchmark.sh $cmd $tier unaligned unaligned-sending
-	send_done
+	for size in "${range[@]}"; do
+		echo "Start test with unaligned buffer, no unaligned sending"	
+		./scripts/g5k-run-benchmark.sh $cmd $tier unaligned unaligned-sending $size
+		send_done
+	done;
 
 	#wait_for_go
-	echo "Start test with unaligned buffer, unaligned sending"
-	./scripts/g5k-run-benchmark.sh $cmd $tier unaligned no-unaligned-sending
-	send_done
+	for size in "${range[@]}"; do
+		echo "Start test with unaligned buffer, unaligned sending"
+		./scripts/g5k-run-benchmark.sh $cmd $tier unaligned no-unaligned-sending $size
+		send_done
+	done;
 }
 
 tests 0

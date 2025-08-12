@@ -4,8 +4,6 @@ set -e
 source config/g5k/ips.conf
 
 NUM_CLIENTS=3
-N_TESTS=8
-COUNT=0
 
 wait_for_slaves() {
 	local COUNT=0
@@ -18,39 +16,88 @@ wait_for_slaves() {
 }
 
 start_slaves() {
-	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
-	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
-	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=1,crnl,shut-down
+	echo "GO" | socat - TCP:$IP_BE:$PORT_SLAVE,retry=10,interval=1,shut-down
+	echo "GO" | socat - TCP:$IP_IS:$PORT_SLAVE,retry=10,interval=1,shut-down
+	echo "GO" | socat - TCP:$IP_FE:$PORT_SLAVE,retry=10,interval=1,shut-down
 }
 
-for i in $(seq $N_TESTS); do
-
-	# cleaning
-	echo "Nettoyage des binaires..."
-	make clean-lib
-	make clean-bin
-
+ready_phase() {
 	# Phase READY : attendre que tous les nœuds soient prêts
 	echo "[MASTER] Attente des noeuds..."
 	wait_for_slaves
-	
-	# Envoi du signal  de départ et mesure du temps
+	echo "[MASTER] Tous les noeuds sont prêts."
+}
+
+stress_phase() {
 	echo "Démarrage du test de stress..."
-	./scripts/g5k-run-benchmark.sh odb LOC unaligned unaligned-sending &
-	stress_test_pid=$!
-	echo "Test $i fini." 
+	# Envoi du signal  de départ
+	start_slaves
+}
 
-
-	# Phase FIN : attendre que tous les nœuds aient terminé
+end_phase() {
+	local stress_pid=$1
 	echo "[MASTER] Attente des noeuds..."
 	wait_for_slaves
-	wait $stress_test_pid
+	echo "[MASTER] Tous les noeuds ont terminé."
+	wait $stress_pid
+}
 
-	# Phase READY : attendre que tous les nœuds soient prêts
-	echo "[MASTER] Attente des noeuds..."
-	wait_for_slaves
-	echo "[MASTER] Test $test terminé"
+tests() {
 
-done
+	local use_odb=$1
+	local test_pid=0
+	local range=("16K" "32K" "64K" "128K" "256K")
+	cmd="odb"
+	if [[ "$use_odb" -eq 0 ]]; then
+		cmd="vanilla"
+	fi
+	
+	echo "Starting $cmd tests..."
+	
+	#wait_for_go
+	echo "[MASTER] Start test with aligned buffer, no unaligned sending"
+	for size in "${range[@]}"; do
+		ready_phase
+		stress_phase
+		./scripts/g5k-run-benchmark.sh $cmd LOC aligned unaligned-sending $size &
+		test_pid=$!
+		end_phase $test_pid
+	done;
+
+	#wait_for_go
+	echo "[MASTER] Start test with aligned buffer, unaligned sending"
+	for size in "${range[@]}"; do
+		ready_phase
+		stress_phase
+		./scripts/g5k-run-benchmark.sh $cmd LOC aligned no-unaligned-sending $size &
+		test_pid=$!
+		end_phase $test_pid
+	done;
+
+	#wait_for_go
+	echo "[MASTER] Start test with unaligned buffer, no unaligned sending"
+	for size in "${range[@]}"; do
+		ready_phase
+		stress_phase
+		./scripts/g5k-run-benchmark.sh $cmd LOC unaligned unaligned-sending $size &
+		test_pid=$!
+		end_phase $test_pid
+	done;
+
+	#wait_for_go
+	echo "[MASTER] Start test with unaligned buffer, unaligned sending"
+	for size in "${range[@]}"; do
+		ready_phase
+		stress_phase
+		./scripts/g5k-run-benchmark.sh $cmd LOC unaligned no-unaligned-sending $size &
+		test_pid=$!
+		end_phase $test_pid
+	done;
+
+	echo "[MASTER] Test $cmd terminé"
+}
+
+tests 0
+tests 1
 
 echo "Tous les tests de charge sont terminés."
