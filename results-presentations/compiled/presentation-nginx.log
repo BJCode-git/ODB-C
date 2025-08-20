@@ -1,0 +1,33 @@
+This is XeTeX, Version 3.141592653-2.6-0.999995 (TeX Live 2023) (preloaded format=xelatex 2023.12.25)  2 JUL 2025 23:55
+entering extended mode
+ \write18 enabled.
+ file:line:error style messages enabled.
+ %&-line parsing enabled.
+**/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/rapport/presentation-nginx.tex
+(/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/rapport/presentation-nginx.tex
+LaTeX2e <2023-11-01>
+L3 programming layer <2023-12-11>
+
+! LaTeX Error: File `beamer.cls' not found.
+
+Type X to quit or <RETURN> to proceed,
+or enter new name. (Default extension: cls)
+
+Enter file name: 
+/home/julien/Cours/Cours3A/Stage3A/Dev/ODBc-Project/NEWODB/rapport/presentation-nginx.tex:2: Emergency stop.
+<read *> 
+         
+l.2 \usepackage
+               [utf8]{inputenc}^^M
+*** (cannot \read from terminal in nonstop modes)
+
+ 
+Here is how much of TeX's memory you used:
+ 22 strings out of 476831
+ 630 string characters out of 5804429
+ 1917106 words of memory out of 5000000
+ 22082 multiletter control sequences out of 15000+600000
+ 558069 words of font info for 36 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 19i,0n,29p,163b,17s stack positions out of 10000i,1000n,20000p,200000b,200000s
+No pages of output.

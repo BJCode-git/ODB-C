@@ -1,0 +1,168 @@
+\documentclass[aspectratio=43,8pt]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage{multicol}
+\usepackage{hyperref}
+\usepackage{babel}[french]
+\hypersetup{
+    colorlinks=true,
+    urlcolor=blue,
+    pdfborder={0 0 0},  % pas de cadre moche
+}
+
+\title{On Demand Buffer (ODB) - Application à Nginx}
+\author[Brelot]{Julien Brelot}
+\date{ Work in Progress , \today}
+
+\usetheme{material}
+\useLightTheme
+\usePrimaryGreen
+\useAccentCyan
+
+\setbeamertemplate{footline}[text line]{%
+  \hfill%
+  \insertframenumber\,/\,\inserttotalframenumber
+}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Nginx : Principe de fonctionnement}
+\begin{card}
+    Pour traiter les requêtes, nginx utilise différents processus :
+    \begin{itemize}
+        \item   Master : Charge la configuration et se charge de créer la socket d'écoute du serveur. Il crée et manage les autres processus.  
+        \item   Cache Loader : charge la mémoire cache afin de répondre plus rapidement aux clients accédant à divers ressources.
+        \item   Cache Manager : régule la mémoire cache quand la limite a été atteinte.
+        \item Worker : Accepte les connexions, gère les requêtes, les traite et y répond efficacement grâce à sa boucle événementiel.
+    \end{itemize}
+\end{card}
+\end{frame}
+
+\begin{frame}{Nginx : Boucle de gestion d'évènements}
+\begin{card}
+    Afin de gérer efficacement un grand nombre de connexion,le worker nginx se repose sur un mécanisme de gestion d'évènement :
+    \begin{itemize}
+        \item   Chaque descripteur de fichier est ajouté dans une file d'observations.
+        \item   Lorsqu'un fichier (ou ensemble de fichiers) est disponible (en lecture, ecriture,...), il est ajoutré dans une queue d'évènement à traiter.
+        \item   Chaque évènement de la queue est ensuite traité.
+        \item   Une fois traité, le descripteur associé est retiré de la queue.
+        \item   On réitère jusquà ce que la queue soit vide.
+        \item   Lorsque la queue est vide, le worker attend un nouvel évènement.
+    \end{itemize}
+	Le worker enregistre donc une liste de descripteurs à surveiller et attend qu'un évènement se produise sur au moins l'un d'eux.
+	Tout cela s'effectue séquentiellement.\\
+	Ainsi, nginx repose donc sur l'utilisation d'un mécanisme d'obersvation et d'attentes d'évènements comme poll (POSIX), epoll (Linux) ou kqueue (FreeBSD).\\
+	Il est donc nécesssaire que les sockets soient non bloquantes afin de réaliser les opérations de lecture/ écritures quand elles sont disponibles uniquement.
+\end{card}
+\end{frame}
+
+\begin{frame}{Nginx : Boucle de gestion d'évènements}
+\begin{figure}
+        \centering
+        \cardImg{img/NGINX-Event-Loop.png}{0.8\textwidth}
+        \caption{\small Nginx Event Loop (source: \href{https://www.f5.com/company/blog/nginx/thread-pools-boost-performance-9x}{https://www.f5.com})}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Nginx : Gestion d'un évenèment}
+\centering
+\begin{figure}
+        \centering
+        \cardImg{img/NGINX-Events-Queue-Processing-Cycle.png}{0.8\textwidth}
+        \caption{\small Event Cycle (source: \href{https://www.f5.com/company/blog/nginx/thread-pools-boost-performance-9x}{https://www.f5.com})}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Nginx : Opération lente (I/O intensive)}
+\begin{card}
+	Les opérations I/O peubvent être très lentes et ralentir la boucle de gestion d'évènements.\\
+	Pour cela, nginx a mis en place des thread pools afin de gérer les opérations I/O lourdes en parallèle et éviter de bloquer un worker durant ces opérations.
+\end{card}
+\begin{figure}
+        \centering
+        \cardImg{img/nginx-mode.png}{0.8\textwidth}
+        \caption{\small epoll mode (source: \href{https://medium.com/@avocadi/what-is-epoll-9bbc74272f7c}{https://medium.com})}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Nginx : Opération lente (I/O intensive)}
+\begin{figure}
+        \centering
+        \cardImg{img/nginx-thread-pool.png}{0.8\textwidth}
+        \caption{\small Nginx Thread Pool (source: \href{https://www.f5.com/company/blog/nginx/thread-pools-boost-performance-9x}{https://www.f5.com})}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Le cas Linux : epoll}
+\begin{card}
+	Sur Linux, nginx utilise epoll pour surveiller les sockets.\\
+	En,effet, dans le cas d'un grand nombre de sockets, epoll est plus performant que poll.\\
+	Il existe 2 modes d'utilisation de epoll :
+	\begin{itemize}
+		\item   Epoll Edge Triggered
+		\item   Epoll Level Triggered
+	\end{itemize}
+	Le mode Edge Triggered est celui utilisé par nginx.\\
+	Ce mode permet de déclencher un évènement lorsque l'état du fichier change.\\
+	A contrario, le mode Level Triggered permet de déclencher un évènement lorsque le fichier est disponible (lecture, ecriture,...).\\
+\end{card}
+\end{frame}
+
+\begin{frame}{Problème : epoll Edge Triggered}
+\begin{card}
+	Le mode Edge Triggered est celui utilisé par nginx.\\
+	De par son principe, il peut générer des soucis de famines ou dans notre cas, amener des données à ne pas être lues. \\
+	Pour illustrer ce problème, prenons cet exemple :
+	\begin{itemize}
+		\item   Un back-end (BE) envoie 2Ko de données au serveur nginx.
+		\item   Supposons, le buffer de nginx est de 1Ko.
+		\item   Le BE envoie 2Ko de données au serveur nginx.
+		\item 	A la réception des données, un event est déclenché (changement d'état de  la socket).
+		\item   La socket devient lisible, nginx lit 1Ko de données.
+		\item 	Il reste 1 Ko dans le buffer du noyau.
+		\item   Or si nginx ne vérifie pas qu'il a bien recu toutes les données, il devra se contenter de 1Ko de données.
+		\item   Pourquoi ? La socket reste dans le même etat (lisible), pas de nouvel event reçu.
+	\end{itemize}
+\end{card}
+\end{frame}
+
+\begin{frame}{Problème : epoll Edge Triggered(2)}
+\begin{card}
+	En l'occurence, nginx s'assure d'avoir bien lues toutes les données jusqu'à EAGAIN.\\
+	Or ODB, fait croire, dans le cas de données virtuelles, qu'il lu toutes les données demandées par recv.\\
+	De ce fait, il peut rester d'autres données dans le buffer de réception du noyau.\\
+	Ces données peuvent être d'autres descripteurs virtuels .\\
+	Ainsi, nginx peut ne pas lire toutes les données virtuelles.\\
+
+	\textbf{Solution 1 :} Détecter à la fin du recv, si le buffer du noyau est vide. Si non, générer utiliser  epoll\_ctl pour signaler un event à nginx.\\
+	\textbf{Solution 2 :} Intercepter epoll\_ctl (enrgistre l'intérêt pour un descripteur), pour utiliser le mode Level Triggered.\\
+
+    La solution 1 a été explorée et semble fonctionnée. Il a fallu hooké epoll\_create et epoll\_ctl pour récupérer le descripteur vers le epoll et les données que nginx passe en paramètre (des callbacks) aux events (struct epoll\_event).
+\end{card}
+\end{frame}
+
+\begin{frame}{Ressources utilisées}
+\begin{card}
+    Ressources sur nginx :
+    	\begin{itemize}
+    		\item \url{https://nginx.org/en/docs/dev/development_guide.html#event_loop}
+    		\item \url{https://medium.com/%40rahuls163284/the-magic-of-nginx-understanding-nginxs-event-driven-system-27866d6e72bb}
+    		\item \url{https://codedamn.com/news/backend/nginx-connection-processing}
+    		\item \url{https://medium.com/@soulaimaneyh/nginx-internal-architecture-b94b013bc365}
+    		\item \url{https://youtu.be/I6dpN0geIb4}
+    		\item \url{https://www.f5.com/company/blog/nginx/thread-pools-boost-performance-9x}
+    	\end{itemize}
+    Ressources sur epoll :
+        \begin{itemize} 
+        	\item \url{https://medium.com/@avocadi/what-is-epoll-9bbc74272f7c}
+        	\item \url{https://man.archlinux.org/man/epoll.7.fr}
+        \end{itemize}
+\end{card}
+\end{frame}
+
+\end{document}

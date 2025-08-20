@@ -1,0 +1,3 @@
+Type,Name,Request Count,Failure Count,Median Response Time,Average Response Time,Min Response Time,Max Response Time,Average Content Size,Requests/s,Failures/s,50%,66%,75%,80%,90%,95%,98%,99%,99.9%,99.99%,100%
+GET,/lorem-32K.html,35608,0,4,5.594877038253199,1.6188170002351399,91.5936999999758,32768.0,358.6496350079952,0.0,4,5,5,6,7,9,28,47,75,91,92
+,Aggregated,35608,0,4,5.594877038253199,1.6188170002351399,91.5936999999758,32768.0,358.6496350079952,0.0,4,5,5,6,7,9,28,47,75,91,92
